@@ -15,6 +15,7 @@ namespace bot {
 enum class GithubEvent {
     PUSH,
     CREATE,
+    PULL_REQUEST,
 };
 
 class GithubWebHook : public LarkBotServlet {
@@ -44,6 +45,17 @@ private:
      * @return bool 
      */
     bool handleCreateEvent(const Json::Value& payload, Result::ptr result);
+
+    /**
+     * @brief 处理 pull_request 事件
+     * @param payload
+     * @param result
+     * @return bool
+     */
+    bool handlePullRequestEvent(const Json::Value& payload, Result::ptr result);
+
+private:
+    void sendFeishuMessage(const std::string& content);
 };
 
 } // namespace bot

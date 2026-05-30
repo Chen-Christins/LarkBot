@@ -5,6 +5,7 @@
 #include <chen/http/http_connection.h>
 
 #include <sstream>
+
 #include "../Struct.hpp"
 #include "../protocol/LarkCardProtocol.hpp"
 
@@ -24,6 +25,8 @@ GithubEvent GithubWebHook::parseEvent(const std::string& event) {
         return GithubEvent::PUSH;
     } else if (event == "create") {
         return GithubEvent::CREATE;
+    } else if (event == "pull_request") {
+        return GithubEvent::PULL_REQUEST;
     } else {
         throw std::invalid_argument("unsupported event: " + event);
     }
@@ -58,6 +61,12 @@ int32_t GithubWebHook::handle(chen::http::HttpRequest::ptr request
                 break;
             }
             break;
+        case GithubEvent::PULL_REQUEST:
+            if (!handlePullRequestEvent(payload, result)) {
+                result->setResult(500, "failed to handle pull_request event");
+                break;
+            }
+            break;
         default:
             result->setResult(400, "unsupported event: " + event);
             break;
@@ -66,6 +75,19 @@ int32_t GithubWebHook::handle(chen::http::HttpRequest::ptr request
     } while (0);
     response->setBody(result->toJsonString());
     return 0;
+}
+
+void GithubWebHook::sendFeishuMessage(const std::string& content) {
+    std::string feishuWebhookUrl = feishu_webhook_url->getValue();
+    if (!feishuWebhookUrl.empty()) {
+        auto headers = std::map<std::string, std::string>{
+            {"Content-Type", "application/json"}
+        };
+        auto ret = chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::POST, feishuWebhookUrl, 2000, headers, content);
+        INFO(logger) << "send feishu message, data=" << ret->toString();
+    } else {
+        WARN(logger) << "feishu webhook url is empty, skip sending message";
+    }
 }
 
 bool GithubWebHook::handlePushEvent(const Json::Value& payload, Result::ptr result) {
@@ -154,17 +176,7 @@ bool GithubWebHook::handlePushEvent(const Json::Value& payload, Result::ptr resu
     Json::Value cardJson;
     card.getData(cardJson);
     
-    std::string feishuWebhookUrl = feishu_webhook_url->getValue();
-    if (!feishuWebhookUrl.empty()) {
-        auto headers = std::map<std::string, std::string>{
-            {"Content-Type", "application/json"}
-        };
-        auto ret = chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::POST, feishuWebhookUrl, 2000, headers, cardJson.toStyledString());
-        
-        INFO(logger) << "send feishu message, data=" << ret->toString();
-    } else {
-        WARN(logger) << "feishu webhook url is empty, skip sending message";
-    }
+    sendFeishuMessage(cardJson.toStyledString());
 
     INFO(logger) << "push event: " << repoName << " " << refName << " " 
         << before.substr(0, 7) << "->" << after.substr(0, 7) << " commits:" << commits.size();
@@ -172,8 +184,123 @@ bool GithubWebHook::handlePushEvent(const Json::Value& payload, Result::ptr resu
     return true;
 }
 
+bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::ptr result) {
+    std::string action = payload.get("action", "").asString();
+    const Json::Value& pr = payload["pull_request"];
+    const Json::Value& repo = payload["repository"];
+    const Json::Value& sender = payload["sender"];
+
+    std::string repoName = repo.get("full_name", "").asString();
+    std::string senderName = sender.get("login", "").asString();
+    int number = pr.get("number", 0).asInt();
+    std::string title = pr.get("title", "").asString();
+    std::string body = pr.get("body", "").asString();
+    std::string state = pr.get("state", "").asString();
+    bool merged = pr.get("merged", false).asBool();
+    std::string htmlUrl = pr.get("html_url", "").asString();
+    std::string baseRef = pr["base"].get("ref", "").asString();
+    std::string headRef = pr["head"].get("ref", "").asString();
+
+    // 构建飞书卡片消息
+    LarkCardProtocol card;
+
+    // 头部 - 根据 action 选择颜色
+    std::string headerTitle = "[" + repoName + "] PR #" + std::to_string(number) + ": " + title;
+    std::string templateColor = "blue";
+    if (action == "opened") {
+        templateColor = "green";
+    } else if (action == "closed") {
+        templateColor = merged ? "purple" : "red";
+    }
+    card.setHeader(headerTitle, "", templateColor);
+
+    // PR 摘要
+    std::ostringstream summary;
+    summary << "**" << senderName << "** ";
+    if (action == "opened") {
+        summary << "opened a pull request";
+    } else if (action == "closed") {
+        summary << (merged ? "merged" : "closed") << " a pull request";
+    } else if (action == "reopened") {
+        summary << "reopened a pull request";
+    } else {
+        summary << action << " a pull request";
+    }
+    summary << "\n";
+    summary << "`" << headRef << "` → `" << baseRef << "`\n";
+
+    if (!body.empty()) {
+        // 截取前 200 字符
+        std::string preview = body.size() > 200 ? body.substr(0, 200) + "..." : body;
+        summary << "\n" << preview;
+    }
+    card.addElement(LarkCardProtocol::markdownElement(summary.str()));
+
+    // 查看 PR 按钮
+    card.addElement(LarkCardProtocol::buttonElement("View Pull Request", htmlUrl));
+
+    card.build();
+
+    Json::Value cardJson;
+    card.getData(cardJson);
+
+    sendFeishuMessage(cardJson.toStyledString());
+
+    INFO(logger) << "pull_request event: " << repoName << " #" << number
+        << " action=" << action << " " << headRef << "->" << baseRef;
+
+    return true;
+}
+
 bool GithubWebHook::handleCreateEvent(const Json::Value& payload, Result::ptr result) {
-    INFO(logger) << "handle create event";
+    std::string ref = payload.get("ref", "").asString();
+    std::string refType = payload.get("ref_type", "").asString();
+    const Json::Value& repo = payload["repository"];
+    const Json::Value& sender = payload["sender"];
+    std::string repoName = repo.get("full_name", "").asString();
+    std::string senderName = sender.get("login", "").asString();
+    std::string masterBranch = payload.get("master_branch", "").asString();
+
+    // 提取名称 (refs/heads/xxx -> xxx, refs/tags/xxx -> xxx)
+    std::string refName;
+    std::string prefix;
+    if (refType == "branch") {
+        prefix = "refs/heads/";
+    } else if (refType == "tag") {
+        prefix = "refs/tags/";
+    }
+    if (!prefix.empty() && ref.compare(0, prefix.size(), prefix) == 0) {
+        refName = ref.substr(prefix.size());
+    } else {
+        refName = ref;
+    }
+
+    LarkCardProtocol card;
+
+    std::string headerTitle = "[" + repoName + "] " + refType + " created: " + refName;
+    card.setHeader(headerTitle, "", "green");
+
+    std::ostringstream summary;
+    summary << "**" << senderName << "** created a " << refType << " `" << refName << "`";
+    if (refType == "branch" && !masterBranch.empty()) {
+        summary << "\nDefault branch: `" << masterBranch << "`";
+    }
+    card.addElement(LarkCardProtocol::markdownElement(summary.str()));
+
+    std::string repoUrl = repo.get("html_url", "").asString();
+    if (!repoUrl.empty()) {
+        card.addElement(LarkCardProtocol::buttonElement("View Repository", repoUrl));
+    }
+
+    card.build();
+
+    Json::Value cardJson;
+    card.getData(cardJson);
+
+    sendFeishuMessage(cardJson.toStyledString());
+
+    INFO(logger) << "create event: " << repoName << " " << refType << " " << refName;
+
     return true;
 }
 
