@@ -54,13 +54,13 @@ public:
 private:
     std::string header_title_;
     std::string header_subtitle_;
-    std::string header_template_;
-    std::string header_padding_;
+    std::string header_template_ = "blue";
+    std::string header_padding_ = "12px 12px 12px 12px";
 
     bool config_update_multi_ = true;
 
-    std::string body_direction_;
-    std::string body_padding_;
+    std::string body_direction_ = "vertical";
+    std::string body_padding_ = "12px 12px 12px 12px";
     Json::Value body_elements_;
 };
 } // namespace bot
