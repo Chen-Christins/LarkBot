@@ -27,6 +27,8 @@ GithubEvent GithubWebHook::parseEvent(const std::string& event) {
         return GithubEvent::CREATE;
     } else if (event == "pull_request") {
         return GithubEvent::PULL_REQUEST;
+    } else if (event == "delete") {
+        return GithubEvent::DELETE;
     } else {
         throw std::invalid_argument("unsupported event: " + event);
     }
@@ -67,6 +69,12 @@ int32_t GithubWebHook::handle(chen::http::HttpRequest::ptr request
                 break;
             }
             break;
+        case GithubEvent::DELETE:
+            if (!handleDeleteEvent(payload, result)) {
+                result->setResult(500, "failed to handle delete event");
+                break;
+            }
+            break;
         default:
             result->setResult(400, "unsupported event: " + event);
             break;
@@ -95,7 +103,14 @@ bool GithubWebHook::handlePushEvent(const Json::Value& payload, Result::ptr resu
     std::string before = payload.get("before", "").asString();
     std::string after = payload.get("after", "").asString();
     bool forced = payload.get("forced", false).asBool();
+    bool deleted = payload.get("deleted", false).asBool();
     std::string compare = payload.get("compare", "").asString();
+
+    // 删除分支/标签由 delete 事件处理，跳过
+    if (deleted) {
+        INFO(logger) << "push event is a deletion, skip";
+        return true;
+    }
 
     // 提取分支名或 tag 名
     std::string refName;
@@ -300,6 +315,40 @@ bool GithubWebHook::handleCreateEvent(const Json::Value& payload, Result::ptr re
     sendFeishuMessage(cardJson.toStyledString());
 
     INFO(logger) << "create event: " << repoName << " " << refType << " " << refName;
+
+    return true;
+}
+
+bool GithubWebHook::handleDeleteEvent(const Json::Value& payload, Result::ptr result) {
+    std::string ref = payload.get("ref", "").asString();
+    std::string refType = payload.get("ref_type", "").asString();
+    const Json::Value& repo = payload["repository"];
+    const Json::Value& sender = payload["sender"];
+    std::string repoName = repo.get("full_name", "").asString();
+    std::string senderName = sender.get("login", "").asString();
+
+    LarkCardProtocol card;
+
+    std::string headerTitle = "[" + repoName + "] " + refType + " deleted: " + ref;
+    card.setHeader(headerTitle, "", "red");
+
+    std::ostringstream summary;
+    summary << "**" << senderName << "** deleted " << refType << " `" << ref << "`";
+    card.addElement(LarkCardProtocol::markdownElement(summary.str()));
+
+    std::string repoUrl = repo.get("html_url", "").asString();
+    if (!repoUrl.empty()) {
+        card.addElement(LarkCardProtocol::buttonElement("View Repository", repoUrl));
+    }
+
+    card.build();
+
+    Json::Value cardJson;
+    card.getData(cardJson);
+
+    sendFeishuMessage(cardJson.toStyledString());
+
+    INFO(logger) << "delete event: " << repoName << " " << refType << " " << ref;
 
     return true;
 }

@@ -16,6 +16,7 @@ enum class GithubEvent {
     PUSH,
     CREATE,
     PULL_REQUEST,
+    DELETE,
 };
 
 class GithubWebHook : public LarkBotServlet {
@@ -54,7 +55,11 @@ private:
      */
     bool handlePullRequestEvent(const Json::Value& payload, Result::ptr result);
 
-private:
+    /**
+     * @brief 处理 delete 事件（分支/标签删除）
+     */
+    bool handleDeleteEvent(const Json::Value& payload, Result::ptr result);
+
     void sendFeishuMessage(const std::string& content);
 };
 
