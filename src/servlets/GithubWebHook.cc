@@ -150,18 +150,21 @@ bool GithubWebHook::handlePushEvent(const Json::Value& payload, Result::ptr resu
     card.addElement(LarkCardProtocol::buttonElement("View Compare", compare));
 
     card.build();
-
+    
+    Json::Value cardJson;
+    card.getData(cardJson);
+    
     std::string feishuWebhookUrl = feishu_webhook_url->getValue();
     if (!feishuWebhookUrl.empty()) {
         auto headers = std::map<std::string, std::string>{
             {"Content-Type", "application/json"}
         };
-        chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::POST, feishuWebhookUrl, 2000, headers, card.toString());
+        auto ret = chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::POST, feishuWebhookUrl, 2000, headers, cardJson.toStyledString());
+        
+        INFO(logger) << "send feishu message, data=" << ret->toString();
     } else {
         WARN(logger) << "feishu webhook url is empty, skip sending message";
     }
-
-    card.getData(result->jsondata);
 
     INFO(logger) << "push event: " << repoName << " " << refName << " " 
         << before.substr(0, 7) << "->" << after.substr(0, 7) << " commits:" << commits.size();
