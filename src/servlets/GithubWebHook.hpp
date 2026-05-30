@@ -8,16 +8,18 @@
 #pragma once
 
 #include <chen/http/servlet.h>
+#include "../struct.hpp"
 
 namespace bot {
 
-class GithubWebHook : public chen::http::Servlet {
+class GithubWebHook : public LarkBotServlet {
 public:
     GithubWebHook();
 
     virtual int32_t handle(chen::http::HttpRequest::ptr request, 
                    chen::http::HttpResponse::ptr response, 
-                   chen::http::HttpSession::ptr session) override;
+                   chen::http::HttpSession::ptr session,
+                   Result::ptr result) override;
 };
 
 } // namespace bot
