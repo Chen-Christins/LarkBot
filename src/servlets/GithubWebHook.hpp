@@ -12,6 +12,11 @@
 
 namespace bot {
 
+enum class GithubEvent {
+    PUSH,
+    CREATE,
+};
+
 class GithubWebHook : public LarkBotServlet {
 public:
     GithubWebHook();
@@ -20,6 +25,25 @@ public:
                    chen::http::HttpResponse::ptr response, 
                    chen::http::HttpSession::ptr session,
                    Result::ptr result) override;
+
+    static GithubEvent parseEvent(const std::string& event);
+
+private:
+    /**
+     * @brief 处理 push 事件
+     * @param payload 
+     * @param result 
+     * @return bool 
+     */
+    bool handlePushEvent(const Json::Value& payload, Result::ptr result);
+
+    /**
+     * @brief 处理 create 事件
+     * @param payload 
+     * @param result 
+     * @return bool 
+     */
+    bool handleCreateEvent(const Json::Value& payload, Result::ptr result);
 };
 
 } // namespace bot
