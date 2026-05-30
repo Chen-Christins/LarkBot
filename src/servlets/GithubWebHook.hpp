@@ -8,16 +8,54 @@
 #pragma once
 
 #include <chen/http/servlet.h>
+#include "../Struct.hpp"
 
 namespace bot {
 
-class GithubWebHook : public chen::http::Servlet {
+enum class GithubEvent {
+    PUSH,
+    CREATE,
+    PULL_REQUEST,
+};
+
+class GithubWebHook : public LarkBotServlet {
 public:
     GithubWebHook();
 
     virtual int32_t handle(chen::http::HttpRequest::ptr request, 
                    chen::http::HttpResponse::ptr response, 
-                   chen::http::HttpSession::ptr session) override;
+                   chen::http::HttpSession::ptr session,
+                   Result::ptr result) override;
+
+    static GithubEvent parseEvent(const std::string& event);
+
+private:
+    /**
+     * @brief 处理 push 事件
+     * @param payload 
+     * @param result 
+     * @return bool 
+     */
+    bool handlePushEvent(const Json::Value& payload, Result::ptr result);
+
+    /**
+     * @brief 处理 create 事件
+     * @param payload 
+     * @param result 
+     * @return bool 
+     */
+    bool handleCreateEvent(const Json::Value& payload, Result::ptr result);
+
+    /**
+     * @brief 处理 pull_request 事件
+     * @param payload
+     * @param result
+     * @return bool
+     */
+    bool handlePullRequestEvent(const Json::Value& payload, Result::ptr result);
+
+private:
+    void sendFeishuMessage(const std::string& content);
 };
 
 } // namespace bot
