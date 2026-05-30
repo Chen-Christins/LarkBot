@@ -57,7 +57,7 @@ private:
     std::string header_template_;
     std::string header_padding_;
 
-    bool config_update_multi_ = false;
+    bool config_update_multi_ = true;
 
     std::string body_direction_;
     std::string body_padding_;
