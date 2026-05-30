@@ -8,7 +8,7 @@
 #pragma once
 
 #include <chen/http/servlet.h>
-#include "../struct.hpp"
+#include "../Struct.hpp"
 
 namespace bot {
 

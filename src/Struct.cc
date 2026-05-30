@@ -1,4 +1,4 @@
-#include "struct.hpp"
+#include "Struct.hpp"
 
 #include <chen/util/util.h>
 

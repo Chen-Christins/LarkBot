@@ -1,5 +1,5 @@
 /**
- * @file struct.hpp
+ * @file Struct.hpp
  * @brief 结构体定义
  * @author Christins (chen.christins@qq.com)
  * @date 2026-05-30
