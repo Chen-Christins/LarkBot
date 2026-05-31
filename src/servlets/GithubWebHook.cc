@@ -29,6 +29,8 @@ GithubEvent GithubWebHook::parseEvent(const std::string& event) {
         return GithubEvent::PULL_REQUEST;
     } else if (event == "delete") {
         return GithubEvent::DELETE;
+    } else if (event == "workflow_run") {
+        return GithubEvent::WORKFLOW_RUN;
     } else {
         throw std::invalid_argument("unsupported event: " + event);
     }
@@ -72,6 +74,12 @@ int32_t GithubWebHook::handle(chen::http::HttpRequest::ptr request
         case GithubEvent::DELETE:
             if (!handleDeleteEvent(payload, result)) {
                 result->setResult(500, "failed to handle delete event");
+                break;
+            }
+            break;
+        case GithubEvent::WORKFLOW_RUN:
+            if (!handleWorkflowRunEvent(payload, result)) {
+                result->setResult(500, "failed to handle workflow_run event");
                 break;
             }
             break;
@@ -349,6 +357,69 @@ bool GithubWebHook::handleDeleteEvent(const Json::Value& payload, Result::ptr re
     sendFeishuMessage(cardJson.toStyledString());
 
     INFO(logger) << "delete event: " << repoName << " " << refType << " " << ref;
+
+    return true;
+}
+
+bool GithubWebHook::handleWorkflowRunEvent(const Json::Value& payload, Result::ptr result) {
+    std::string action = payload.get("action", "").asString();
+    const Json::Value& run = payload["workflow_run"];
+    const Json::Value& repo = payload["repository"];
+    // const Json::Value& sender = payload["sender"];
+
+    // 只报告已完成的 workflow
+    if (action != "completed") {
+        INFO(logger) << "workflow_run action=" << action << " skip";
+        return true;
+    }
+
+    std::string repoName = repo.get("full_name", "").asString();
+    std::string name = run.get("name", "").asString();
+    std::string conclusion = run.get("conclusion", "").asString();
+    std::string branch = run.get("head_branch", "").asString();
+    std::string htmlUrl = run.get("html_url", "").asString();
+    std::string displayTitle = run.get("display_title", "").asString();
+    int runNumber = run.get("run_number", 0).asInt();
+    std::string headSha = run["head_commit"].get("id", "").asString().substr(0, 7);
+
+    LarkCardProtocol card;
+
+    // 根据结论选择颜色
+    std::string headerTitle = "[" + repoName + "] Workflow #" + std::to_string(runNumber) + ": " + name;
+    std::string templateColor;
+    std::string icon;
+    if (conclusion == "success") {
+        templateColor = "green";
+        icon = "✓";
+    } else if (conclusion == "failure") {
+        templateColor = "red";
+        icon = "✗";
+    } else if (conclusion == "cancelled") {
+        templateColor = "yellow";
+        icon = "✗";
+    } else {
+        templateColor = "blue";
+        icon = "·";
+    }
+    card.setHeader(headerTitle, "", templateColor);
+
+    std::ostringstream summary;
+    summary << icon << " **" << conclusion << "**  \n"
+            << "Branch: `" << branch << "`  \n"
+            << "Commit: `" << headSha << "` — " << displayTitle;
+    card.addElement(LarkCardProtocol::markdownElement(summary.str()));
+
+    card.addElement(LarkCardProtocol::buttonElement("View Workflow Run", htmlUrl));
+
+    card.build();
+
+    Json::Value cardJson;
+    card.getData(cardJson);
+
+    sendFeishuMessage(cardJson.toStyledString());
+
+    INFO(logger) << "workflow_run event: " << repoName << " " << name
+        << " conclusion=" << conclusion << " branch=" << branch;
 
     return true;
 }
