@@ -20,6 +20,7 @@ enum class GithubEvent {
     WORKFLOW_RUN,
     RELEASE,
     WATCH,
+    UNKNOWN
 };
 
 class GithubWebHook : public LarkBotServlet {
