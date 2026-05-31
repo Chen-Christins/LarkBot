@@ -18,6 +18,7 @@ enum class GithubEvent {
     PULL_REQUEST,
     DELETE,
     WORKFLOW_RUN,
+    RELEASE,
 };
 
 class GithubWebHook : public LarkBotServlet {
@@ -65,6 +66,11 @@ private:
      * @brief 处理 workflow_run 事件
      */
     bool handleWorkflowRunEvent(const Json::Value& payload, Result::ptr result);
+
+    /**
+     * @brief 处理 release 事件
+     */
+    bool handleReleaseEvent(const Json::Value& payload, Result::ptr result);
 
     /**
      * @brief 发送飞书消息

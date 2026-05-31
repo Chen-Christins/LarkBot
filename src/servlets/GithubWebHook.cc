@@ -31,6 +31,8 @@ GithubEvent GithubWebHook::parseEvent(const std::string& event) {
         return GithubEvent::DELETE;
     } else if (event == "workflow_run") {
         return GithubEvent::WORKFLOW_RUN;
+    } else if (event == "release") {
+        return GithubEvent::RELEASE;
     } else {
         throw std::invalid_argument("unsupported event: " + event);
     }
@@ -80,6 +82,12 @@ int32_t GithubWebHook::handle(chen::http::HttpRequest::ptr request
         case GithubEvent::WORKFLOW_RUN:
             if (!handleWorkflowRunEvent(payload, result)) {
                 result->setResult(500, "failed to handle workflow_run event");
+                break;
+            }
+            break;
+        case GithubEvent::RELEASE:
+            if (!handleReleaseEvent(payload, result)) {
+                result->setResult(500, "failed to handle release event");
                 break;
             }
             break;
@@ -149,14 +157,15 @@ bool GithubWebHook::handlePushEvent(const Json::Value& payload, Result::ptr resu
     // 头部
     std::string title = "[" + repoName + "] " + pusherName + " pushed";
     if (refType == "tag") {
-        title += " tag ";
+        title += " tag 🏷️  ";
     } else {
         title += " to ";
     }
     title += refName;
     if (forced) {
-        title += " (force push)";
+        title += " ⚡";
     }
+    title += " 📦";
 
     card.setHeader(title, "", "blue");
 
@@ -227,13 +236,26 @@ bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::p
     // 构建飞书卡片消息
     LarkCardProtocol card;
 
-    // 头部 - 根据 action 选择颜色
+    // 头部 - 根据 action 选择颜色和 emoji
     std::string headerTitle = "[" + repoName + "] PR #" + std::to_string(number) + ": " + title;
     std::string templateColor = "blue";
+    std::string emoji;
     if (action == "opened") {
         templateColor = "green";
+        emoji = "🟢";
     } else if (action == "closed") {
-        templateColor = merged ? "purple" : "red";
+        if (merged) {
+            templateColor = "purple";
+            emoji = "🟣";
+        } else {
+            templateColor = "red";
+            emoji = "🔴";
+        }
+    } else if (action == "reopened") {
+        emoji = "🔄";
+    }
+    if (!emoji.empty()) {
+        headerTitle += " " + emoji;
     }
     card.setHeader(headerTitle, "", templateColor);
 
@@ -300,7 +322,8 @@ bool GithubWebHook::handleCreateEvent(const Json::Value& payload, Result::ptr re
 
     LarkCardProtocol card;
 
-    std::string headerTitle = "[" + repoName + "] " + refType + " created: " + refName;
+    std::string headerTitle = "[" + repoName + "] " + refType + " created: " + refName
+                            + (refType == "branch" ? " 🌿" : " 🏷️");
     card.setHeader(headerTitle, "", "green");
 
     std::ostringstream summary;
@@ -337,7 +360,7 @@ bool GithubWebHook::handleDeleteEvent(const Json::Value& payload, Result::ptr re
 
     LarkCardProtocol card;
 
-    std::string headerTitle = "[" + repoName + "] " + refType + " deleted: " + ref;
+    std::string headerTitle = "[" + repoName + "] " + refType + " deleted: " + ref + " 🗑️";
     card.setHeader(headerTitle, "", "red");
 
     std::ostringstream summary;
@@ -384,27 +407,28 @@ bool GithubWebHook::handleWorkflowRunEvent(const Json::Value& payload, Result::p
 
     LarkCardProtocol card;
 
-    // 根据结论选择颜色
+    // 根据结论选择颜色和 emoji
     std::string headerTitle = "[" + repoName + "] Workflow #" + std::to_string(runNumber) + ": " + name;
     std::string templateColor;
-    std::string icon;
+    std::string emoji;
     if (conclusion == "success") {
         templateColor = "green";
-        icon = "✓";
+        emoji = "✅";
     } else if (conclusion == "failure") {
         templateColor = "red";
-        icon = "✗";
+        emoji = "❌";
     } else if (conclusion == "cancelled") {
         templateColor = "yellow";
-        icon = "✗";
+        emoji = "⚠️";
     } else {
         templateColor = "blue";
-        icon = "·";
+        emoji = "❓";
     }
+    headerTitle += " " + emoji;
     card.setHeader(headerTitle, "", templateColor);
 
     std::ostringstream summary;
-    summary << icon << " **" << conclusion << "**  \n"
+    summary << emoji << " **" << conclusion << "**  \n"
             << "Branch: `" << branch << "`  \n"
             << "Commit: `" << headSha << "` — " << displayTitle;
     card.addElement(LarkCardProtocol::markdownElement(summary.str()));
@@ -420,6 +444,80 @@ bool GithubWebHook::handleWorkflowRunEvent(const Json::Value& payload, Result::p
 
     INFO(logger) << "workflow_run event: " << repoName << " " << name
         << " conclusion=" << conclusion << " branch=" << branch;
+
+    return true;
+}
+
+bool GithubWebHook::handleReleaseEvent(const Json::Value& payload, Result::ptr result) {
+    std::string action = payload.get("action", "").asString();
+    const Json::Value& release = payload["release"];
+    const Json::Value& repo = payload["repository"];
+
+    std::string repoName = repo.get("full_name", "").asString();
+    std::string tagName = release.get("tag_name", "").asString();
+    std::string name = release.get("name", "").asString();
+    std::string body = release.get("body", "").asString();
+    bool prerelease = release.get("prerelease", false).asBool();
+    bool draft = release.get("draft", false).asBool();
+    std::string htmlUrl = release.get("html_url", "").asString();
+    std::string targetCommitish = release.get("target_commitish", "").asString();
+
+    LarkCardProtocol card;
+
+    std::string displayName = name.empty() ? tagName : name;
+    std::string headerTitle = "[" + repoName + "] Release: " + displayName;
+    std::string templateColor;
+    std::string emoji;
+    if (draft) {
+        templateColor = "grey";
+        emoji = "📝";
+    } else if (action == "published" && !prerelease) {
+        templateColor = "green";
+        emoji = "🚀";
+    } else if (prerelease) {
+        templateColor = "orange";
+        emoji = "🧪";
+    } else if (action == "deleted") {
+        templateColor = "red";
+        emoji = "🗑️";
+    } else {
+        templateColor = "blue";
+    }
+    if (!emoji.empty()) {
+        headerTitle += " " + emoji;
+    }
+    card.setHeader(headerTitle, "", templateColor);
+
+    std::ostringstream summary;
+    summary << "**" << repoName << "** ";
+    if (action == "published") {
+        summary << (prerelease ? "pre-release" : "released");
+    } else if (action == "prereleased") {
+        summary << "pre-released";
+    } else {
+        summary << action;
+    }
+    summary << "\n";
+    summary << "Tag: `" << tagName << "`  \n";
+    summary << "Target: `" << targetCommitish << "`  \n";
+
+    if (!body.empty()) {
+        std::string preview = body.size() > 200 ? body.substr(0, 200) + "..." : body;
+        summary << "\n" << preview;
+    }
+    card.addElement(LarkCardProtocol::markdownElement(summary.str()));
+
+    card.addElement(LarkCardProtocol::buttonElement("View Release", htmlUrl));
+
+    card.build();
+
+    Json::Value cardJson;
+    card.getData(cardJson);
+
+    sendFeishuMessage(cardJson.toStyledString());
+
+    INFO(logger) << "release event: " << repoName << " tag=" << tagName
+        << " action=" << action << " prerelease=" << prerelease;
 
     return true;
 }
