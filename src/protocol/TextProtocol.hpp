@@ -19,7 +19,10 @@ public:
 
     virtual void getData(Json::Value& value) const override;
 
+    virtual void setEnableSignature(bool enable) override;
+
     void setText(const std::string& text);
+
 private:
     std::string text_;
 };

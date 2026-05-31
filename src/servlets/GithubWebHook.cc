@@ -326,8 +326,7 @@ bool GithubWebHook::handleCreateEvent(const Json::Value& payload, Result::ptr re
 
     LarkCardProtocol card;
 
-    std::string headerTitle = "[" + repoName + "] " + refType + " created: " + refName
-                            + (refType == "branch" ? " 🌿" : " 🏷️");
+    std::string headerTitle = "[" + repoName + "] " + refType + " created: " + refName + (refType == "branch" ? " 🌿" : " 🏷️");
     card.setHeader(headerTitle, "", "green");
 
     std::ostringstream summary;

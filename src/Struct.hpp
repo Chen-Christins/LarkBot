@@ -57,4 +57,12 @@ public:
                    Result::ptr result) = 0;
 };
 
+/**
+ * @brief 飞书签名算法
+ * @param secret 飞书机器人的签名校验密钥
+ * @param timestamp 当前时间戳(秒)，距当前不超过 1 小时
+ * @return Base64 编码的签名结果
+ */
+std::string feishuSign(const std::string& secret, int64_t timestamp);
+
 } // namespace bot

@@ -74,7 +74,7 @@ private:
 
     /**
      * @brief 发送飞书消息
-     * @param content 
+     * @param content 消息内容（JSON 格式）
      */
     void sendFeishuMessage(const std::string& content);
 };

@@ -21,6 +21,8 @@ public:
 
     virtual void getData(Json::Value& value) const override;
 
+    virtual void setEnableSignature(bool enable) override;
+
     // 设置卡片头部
     void setHeader(const std::string& title,
                    const std::string& subtitle = "",

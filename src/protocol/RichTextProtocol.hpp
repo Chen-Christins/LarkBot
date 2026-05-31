@@ -19,6 +19,8 @@ public:
 
     virtual void getData(Json::Value& value) const override;
 
+    virtual void setEnableSignature(bool enable) override;
+
     void setTitle(const std::string& title);
 
     void addParagraph(const Json::Value& paragraph);
