@@ -114,9 +114,10 @@ bool GithubWebHook::handlePushEvent(const Json::Value& payload, Result::ptr resu
     bool deleted = payload.get("deleted", false).asBool();
     std::string compare = payload.get("compare", "").asString();
 
-    // 删除分支/标签由 delete 事件处理，跳过
-    if (deleted) {
-        INFO(logger) << "push event is a deletion, skip";
+    // 删除/创建分支由 delete/create 事件处理，commits 为空时跳过
+    const Json::Value& commits = payload["commits"];
+    if (deleted || commits.empty()) {
+        INFO(logger) << "push event skipped (deleted=" << deleted << ", commits=" << commits.size() << ")";
         return true;
     }
 
@@ -139,7 +140,6 @@ bool GithubWebHook::handlePushEvent(const Json::Value& payload, Result::ptr resu
 
     const Json::Value& repo = payload["repository"];
     const Json::Value& pusher = payload["pusher"];
-    const Json::Value& commits = payload["commits"];
     std::string repoName = repo.get("full_name", "").asString();
     std::string pusherName = pusher.get("name", "").asString();
 
