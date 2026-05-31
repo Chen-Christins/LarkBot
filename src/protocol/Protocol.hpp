@@ -25,7 +25,7 @@ public:
     /**
      * @brief 构建协议内容
      */
-    virtual void build() = 0;
+    virtual void build();
 
     /**
      * @brief 协议内容转换为字符串
