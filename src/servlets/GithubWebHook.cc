@@ -34,6 +34,8 @@ GithubEvent GithubWebHook::parseEvent(const std::string& event) {
         return GithubEvent::WORKFLOW_RUN;
     } else if (event == "release") {
         return GithubEvent::RELEASE;
+    } else if (event == "watch") {
+        return GithubEvent::WATCH;
     } else {
         throw std::invalid_argument("unsupported event: " + event);
     }
@@ -89,6 +91,12 @@ int32_t GithubWebHook::handle(chen::http::HttpRequest::ptr request
         case GithubEvent::RELEASE:
             if (!handleReleaseEvent(payload, result)) {
                 result->setResult(500, "failed to handle release event");
+                break;
+            }
+            break;
+        case GithubEvent::WATCH:
+            if (!handleWatchEvent(payload, result)) {
+                result->setResult(500, "failed to handle watch event");
                 break;
             }
             break;
@@ -521,6 +529,46 @@ bool GithubWebHook::handleReleaseEvent(const Json::Value& payload, Result::ptr r
 
     INFO(logger) << "release event: " << repoName << " tag=" << tagName
         << " action=" << action << " prerelease=" << prerelease;
+
+    return true;
+}
+
+bool GithubWebHook::handleWatchEvent(const Json::Value& payload, Result::ptr result) {
+    std::string action = payload.get("action", "").asString();
+    if (action != "started") {
+        INFO(logger) << "watch event action=" << action << " skip";
+        return true;
+    }
+
+    const Json::Value& repo = payload["repository"];
+    const Json::Value& sender = payload["sender"];
+    std::string repoName = repo.get("full_name", "").asString();
+    std::string senderName = sender.get("login", "").asString();
+    int stargazersCount = repo.get("stargazers_count", 0).asInt();
+
+    LarkCardProtocol card;
+
+    card.setHeader("[" + repoName + "] New Star ⭐", "", "yellow");
+
+    std::ostringstream summary;
+    summary << "**" << senderName << "** starred " << repoName << "\n"
+            << "Total stars: **" << stargazersCount << "** ⭐";
+    card.addElement(LarkCardProtocol::markdownElement(summary.str()));
+
+    std::string repoUrl = repo.get("html_url", "").asString();
+    if (!repoUrl.empty()) {
+        card.addElement(LarkCardProtocol::buttonElement("View Repository", repoUrl));
+    }
+
+    card.build();
+
+    Json::Value cardJson;
+    card.getData(cardJson);
+
+    sendFeishuMessage(cardJson.toStyledString());
+
+    INFO(logger) << "watch event: " << senderName << " starred " << repoName
+        << " (total: " << stargazersCount << ")";
 
     return true;
 }
