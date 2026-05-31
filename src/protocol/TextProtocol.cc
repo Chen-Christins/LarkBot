@@ -40,8 +40,4 @@ void TextProtocol::setText(const std::string& text) {
     text_ = text;
 }
 
-void TextProtocol::setEnableSignature(bool enable) {
-    enableSignature_ = enable;
-}
-
 } // namespace bot

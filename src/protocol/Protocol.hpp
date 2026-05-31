@@ -38,18 +38,10 @@ public:
      * @param value 输出参数，协议数据以Json格式返回
      */
     virtual void getData(Json::Value& value) const = 0;
-    
-    /**
-     * @brief 设置是否开启签名验证
-     * @param enable 
-     */
-    virtual void setEnableSignature(bool enable) = 0;
 
 protected:
     // 协议数据，具体内容由子类实现决定
     mutable Json::Value data_;
-    // 是否开启签名验证
-    bool enableSignature_ = false;
 };
 
 class ProtocolManager {

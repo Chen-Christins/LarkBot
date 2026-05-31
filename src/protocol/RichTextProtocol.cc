@@ -37,10 +37,6 @@ void RichTextProtocol::getData(Json::Value& value) const {
     value = data_;
 }
 
-void RichTextProtocol::setEnableSignature(bool enable) {
-    enableSignature_ = enable;
-}
-
 void RichTextProtocol::setTitle(const std::string& title) {
     title_ = title;
 }

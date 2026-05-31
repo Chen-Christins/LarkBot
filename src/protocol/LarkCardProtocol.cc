@@ -56,10 +56,6 @@ void LarkCardProtocol::getData(Json::Value& value) const {
     value = data_;
 }
 
-void LarkCardProtocol::setEnableSignature(bool enable) {
-    enableSignature_ = enable;
-}
-
 void LarkCardProtocol::setHeader(const std::string& title, const std::string& subtitle
         , const std::string& templateColor, const std::string& padding) {
     header_title_ = title;
