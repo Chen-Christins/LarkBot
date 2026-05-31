@@ -91,3 +91,7 @@ redis:
       pool: 1
       timeout: 100
   desc: "type: redis,redis_cluster,fox_redis,fox_redis_cluster"
+
+# 这里设置飞书机器人的webhook地址，格式如下：https://open.feishu.cn/open-apis/bot/v2/hook/xxxx-xxxx-xxxx-xxxx
+feishu:
+  webhook_url: ""

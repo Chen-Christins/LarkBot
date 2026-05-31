@@ -66,6 +66,10 @@ private:
      */
     bool handleWorkflowRunEvent(const Json::Value& payload, Result::ptr result);
 
+    /**
+     * @brief 发送飞书消息
+     * @param content 
+     */
     void sendFeishuMessage(const std::string& content);
 };
 
