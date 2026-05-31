@@ -3,6 +3,7 @@
 #include <chen/log/log.h>
 #include <chen/config/config.h>
 #include <chen/http/http_connection.h>
+#include <chen/iomanager/iomanager.h>
 
 #include <sstream>
 
@@ -103,15 +104,18 @@ int32_t GithubWebHook::handle(chen::http::HttpRequest::ptr request
 
 void GithubWebHook::sendFeishuMessage(const std::string& content) {
     std::string feishuWebhookUrl = feishu_webhook_url->getValue();
-    if (!feishuWebhookUrl.empty()) {
+    if (feishuWebhookUrl.empty()) {
+        WARN(logger) << "feishu webhook url is empty, skip sending message";
+        return;
+    }
+    // 投递到协程调度器异步发送，不阻塞 GitHub WebHook 响应
+    chen::IOManager::GetThis()->schedule([url = std::move(feishuWebhookUrl), content]() {
         auto headers = std::map<std::string, std::string>{
             {"Content-Type", "application/json"}
         };
-        auto ret = chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::POST, feishuWebhookUrl, 2000, headers, content);
+        auto ret = chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::POST, url, 2000, headers, content);
         INFO(logger) << "send feishu message, data=" << ret->toString();
-    } else {
-        WARN(logger) << "feishu webhook url is empty, skip sending message";
-    }
+    });
 }
 
 bool GithubWebHook::handlePushEvent(const Json::Value& payload, Result::ptr result) {
