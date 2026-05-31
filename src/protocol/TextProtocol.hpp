@@ -20,6 +20,7 @@ public:
     virtual void getData(Json::Value& value) const override;
 
     void setText(const std::string& text);
+
 private:
     std::string text_;
 };

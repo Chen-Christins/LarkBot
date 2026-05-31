@@ -95,3 +95,5 @@ redis:
 # 这里设置飞书机器人的webhook地址，格式如下：https://open.feishu.cn/open-apis/bot/v2/hook/xxxx-xxxx-xxxx-xxxx
 feishu:
   webhook_url: ""
+  enable_signature: 0
+  secret: ""

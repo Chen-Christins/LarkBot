@@ -14,7 +14,7 @@ namespace bot {
 
 static chen::Logger::ptr logger = LOG_NAME("bot");
 
-static chen::ConfigVar<std::string>::ptr feishu_webhook_url = 
+static chen::ConfigVar<std::string>::ptr g_feishu_webhook_url = 
     chen::Config::Lookup<std::string>("feishu.webhook_url", "", "飞书 Webhook 地址");
 
 GithubWebHook::GithubWebHook()
@@ -103,7 +103,7 @@ int32_t GithubWebHook::handle(chen::http::HttpRequest::ptr request
 }
 
 void GithubWebHook::sendFeishuMessage(const std::string& content) {
-    std::string feishuWebhookUrl = feishu_webhook_url->getValue();
+    std::string feishuWebhookUrl = g_feishu_webhook_url->getValue();
     if (feishuWebhookUrl.empty()) {
         WARN(logger) << "feishu webhook url is empty, skip sending message";
         return;
@@ -326,8 +326,7 @@ bool GithubWebHook::handleCreateEvent(const Json::Value& payload, Result::ptr re
 
     LarkCardProtocol card;
 
-    std::string headerTitle = "[" + repoName + "] " + refType + " created: " + refName
-                            + (refType == "branch" ? " 🌿" : " 🏷️");
+    std::string headerTitle = "[" + repoName + "] " + refType + " created: " + refName + (refType == "branch" ? " 🌿" : " 🏷️");
     card.setHeader(headerTitle, "", "green");
 
     std::ostringstream summary;
