@@ -37,7 +37,8 @@ GithubEvent GithubWebHook::parseEvent(const std::string& event) {
     } else if (event == "watch") {
         return GithubEvent::WATCH;
     } else {
-        throw std::invalid_argument("unsupported event: " + event);
+        ERROR(logger) << "unsupported github event: " << event;
+        return GithubEvent::UNKNOWN;
     }
 }
 
@@ -100,6 +101,7 @@ int32_t GithubWebHook::handle(chen::http::HttpRequest::ptr request
                 break;
             }
             break;
+        case GithubEvent::UNKNOWN:
         default:
             result->setResult(400, "unsupported event: " + event);
             break;
