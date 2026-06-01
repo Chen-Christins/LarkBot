@@ -118,13 +118,31 @@ void GithubWebHook::sendFeishuMessage(const std::string& content) {
         WARN(logger) << "feishu webhook url is empty, skip sending message";
         return;
     }
-    // 投递到协程调度器异步发送，不阻塞 GitHub WebHook 响应
+
     chen::IOManager::GetThis()->schedule([url = std::move(feishuWebhookUrl), content]() {
         auto headers = std::map<std::string, std::string>{
             {"Content-Type", "application/json"}
         };
-        auto ret = chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::POST, url, 2000, headers, content);
-        INFO(logger) << "send feishu message, data=" << ret->toString();
+
+        constexpr int kMaxRetries = 5;
+        for (int attempt = 1; attempt <= kMaxRetries; ++attempt) {
+            auto ret = chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::POST, url, 2000, headers, content);
+            if (ret->result == static_cast<int>(chen::http::HttpResult::Error::OK)) {
+                INFO(logger) << "send feishu message success";
+                return;
+            }
+            // 只对临时性错误重试
+            if (ret->result != static_cast<int>(chen::http::HttpResult::Error::TIMEOUT)
+                    && ret->result != static_cast<int>(chen::http::HttpResult::Error::CONNECT_FAIL)
+                    && ret->result != static_cast<int>(chen::http::HttpResult::Error::SEND_CLOSE_BY_PEER)
+                    && ret->result != static_cast<int>(chen::http::HttpResult::Error::SEND_SOCKET_ERROR)) {
+                WARN(logger) << "send feishu message failed, non-retryable error, data=" << ret->toString();
+                return;
+            }
+            WARN(logger) << "send feishu message failed (attempt " << attempt << "/" << kMaxRetries
+                << "), data=" << ret->toString();
+        }
+        ERROR(logger) << "send feishu message exhausted all retries";
     });
 }
 
