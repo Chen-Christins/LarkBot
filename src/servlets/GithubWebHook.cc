@@ -323,9 +323,7 @@ bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::p
     summary << "`" << headRef << "` → `" << baseRef << "`\n";
 
     if (!body.empty()) {
-        // 截取前 200 字符
-        std::string preview = body.size() > 200 ? body.substr(0, 200) + "..." : body;
-        summary << "\n" << preview;
+        summary << "\n" << body;
     }
     card.addElement(LarkCardProtocol::markdownElement(summary.str()));
 
@@ -549,8 +547,7 @@ bool GithubWebHook::handleReleaseEvent(const Json::Value& payload, Result::ptr r
     summary << "Target: `" << targetCommitish << "`  \n";
 
     if (!body.empty()) {
-        std::string preview = body.size() > 200 ? body.substr(0, 200) + "..." : body;
-        summary << "\n" << preview;
+        summary << "\n" << body;
     }
     card.addElement(LarkCardProtocol::markdownElement(summary.str()));
 
@@ -667,8 +664,7 @@ bool GithubWebHook::handlePullRequestReviewEvent(const Json::Value& payload, Res
     summary << " on PR #" << prNumber;
 
     if (!reviewBody.empty()) {
-        std::string preview = reviewBody.size() > 300 ? reviewBody.substr(0, 300) + "..." : reviewBody;
-        summary << "\n\n" << preview;
+        summary << "\n\n" << reviewBody;
     }
     card.addElement(LarkCardProtocol::markdownElement(summary.str()));
 
@@ -729,8 +725,7 @@ bool GithubWebHook::handlePullRequestReviewCommentEvent(const Json::Value& paylo
     }
 
     if (!commentBody.empty()) {
-        std::string preview = commentBody.size() > 300 ? commentBody.substr(0, 300) + "..." : commentBody;
-        summary << "\n" << preview;
+        summary << "\n" << commentBody;
     }
     card.addElement(LarkCardProtocol::markdownElement(summary.str()));
 
