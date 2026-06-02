@@ -87,4 +87,4 @@ src/
 
 ## License
 
-Apache 2.0
+Licensed under the [Apache License 2.0](LICENSE).
