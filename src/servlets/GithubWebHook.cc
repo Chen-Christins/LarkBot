@@ -36,6 +36,10 @@ GithubEvent GithubWebHook::parseEvent(const std::string& event) {
         return GithubEvent::RELEASE;
     } else if (event == "watch") {
         return GithubEvent::WATCH;
+    } else if (event == "pull_request_review") {
+        return GithubEvent::PULL_REQUEST_REVIEW;
+    } else if (event == "pull_request_review_comment") {
+        return GithubEvent::PULL_REQUEST_REVIEW_COMMENT;
     } else {
         ERROR(logger) << "unsupported github event: " << event;
         return GithubEvent::UNKNOWN;
@@ -101,6 +105,18 @@ int32_t GithubWebHook::handle(chen::http::HttpRequest::ptr request
                 break;
             }
             break;
+        case GithubEvent::PULL_REQUEST_REVIEW:
+            if (!handlePullRequestReviewEvent(payload, result)) {
+                result->setResult(500, "failed to handle pull_request_review event");
+                break;
+            }
+            break;
+        case GithubEvent::PULL_REQUEST_REVIEW_COMMENT:
+            if (!handlePullRequestReviewCommentEvent(payload, result)) {
+                result->setResult(500, "failed to handle pull_request_review_comment event");
+                break;
+            }
+            break;
         case GithubEvent::UNKNOWN:
         default:
             result->setResult(400, "unsupported event: " + event);
@@ -126,7 +142,7 @@ void GithubWebHook::sendFeishuMessage(const std::string& content) {
 
         constexpr int kMaxRetries = 5;
         for (int attempt = 1; attempt <= kMaxRetries; ++attempt) {
-            auto ret = chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::POST, url, 2000, headers, content);
+            auto ret = chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::POST, url, 5000, headers, content);
             if (ret->result == static_cast<int>(chen::http::HttpResult::Error::OK)) {
                 INFO(logger) << "send feishu message success";
                 return;
@@ -589,6 +605,149 @@ bool GithubWebHook::handleWatchEvent(const Json::Value& payload, Result::ptr res
 
     INFO(logger) << "watch event: " << senderName << " starred " << repoName
         << " (total: " << stargazersCount << ")";
+
+    return true;
+}
+
+bool GithubWebHook::handlePullRequestReviewEvent(const Json::Value& payload, Result::ptr result) {
+    std::string action = payload.get("action", "").asString();
+    const Json::Value& review = payload["review"];
+    const Json::Value& pr = payload["pull_request"];
+    const Json::Value& repo = payload["repository"];
+    const Json::Value& sender = payload["sender"];
+
+    std::string repoName = repo.get("full_name", "").asString();
+    std::string senderName = sender.get("login", "").asString();
+    int prNumber = pr.get("number", 0).asInt();
+    std::string prTitle = pr.get("title", "").asString();
+    std::string prUrl = pr.get("html_url", "").asString();
+    std::string reviewState = review.get("state", "").asString();
+    std::string reviewBody = review.get("body", "").asString();
+    std::string reviewUrl = review.get("html_url", "").asString();
+
+    LarkCardProtocol card;
+
+    // 根据 review state 选择颜色和 emoji
+    std::string headerTitle = "[" + repoName + "] PR #" + std::to_string(prNumber) + " Review: " + prTitle;
+    std::string templateColor;
+    std::string emoji;
+    if (reviewState == "approved") {
+        templateColor = "green";
+        emoji = "✅";
+    } else if (reviewState == "changes_requested") {
+        templateColor = "red";
+        emoji = "🔴";
+    } else if (reviewState == "commented") {
+        templateColor = "blue";
+        emoji = "💬";
+    } else if (reviewState == "dismissed") {
+        templateColor = "grey";
+        emoji = "↩️";
+    } else {
+        templateColor = "blue";
+    }
+    if (!emoji.empty()) {
+        headerTitle += " " + emoji;
+    }
+    card.setHeader(headerTitle, "", templateColor);
+
+    std::ostringstream summary;
+    summary << "**" << senderName << "** ";
+    if (reviewState == "approved") {
+        summary << "approved";
+    } else if (reviewState == "changes_requested") {
+        summary << "requested changes";
+    } else if (reviewState == "commented") {
+        summary << "commented";
+    } else if (reviewState == "dismissed") {
+        summary << "dismissed a review";
+    } else {
+        summary << reviewState;
+    }
+    summary << " on PR #" << prNumber;
+
+    if (!reviewBody.empty()) {
+        std::string preview = reviewBody.size() > 300 ? reviewBody.substr(0, 300) + "..." : reviewBody;
+        summary << "\n\n" << preview;
+    }
+    card.addElement(LarkCardProtocol::markdownElement(summary.str()));
+
+    if (!reviewUrl.empty()) {
+        card.addElement(LarkCardProtocol::buttonElement("View Review", reviewUrl));
+    }
+    card.addElement(LarkCardProtocol::buttonElement("View Pull Request", prUrl));
+
+    card.build();
+
+    Json::Value cardJson;
+    card.getData(cardJson);
+
+    sendFeishuMessage(cardJson.toStyledString());
+
+    INFO(logger) << "pull_request_review event: " << repoName << " PR #" << prNumber
+        << " state=" << reviewState << " by " << senderName;
+
+    return true;
+}
+
+bool GithubWebHook::handlePullRequestReviewCommentEvent(const Json::Value& payload, Result::ptr result) {
+    std::string action = payload.get("action", "").asString();
+    const Json::Value& comment = payload["comment"];
+    const Json::Value& pr = payload["pull_request"];
+    const Json::Value& repo = payload["repository"];
+    const Json::Value& sender = payload["sender"];
+
+    std::string repoName = repo.get("full_name", "").asString();
+    std::string senderName = sender.get("login", "").asString();
+    int prNumber = pr.get("number", 0).asInt();
+    std::string prTitle = pr.get("title", "").asString();
+    std::string prUrl = pr.get("html_url", "").asString();
+    std::string commentBody = comment.get("body", "").asString();
+    std::string commentUrl = comment.get("html_url", "").asString();
+    std::string filePath = comment.get("path", "").asString();
+    int line = comment.get("line", 0).asInt();
+    int startLine = comment.get("start_line", 0).asInt();
+
+    LarkCardProtocol card;
+
+    std::string headerTitle = "[" + repoName + "] PR #" + std::to_string(prNumber) + " Comment: " + prTitle + " 💬";
+    card.setHeader(headerTitle, "", "blue");
+
+    std::ostringstream summary;
+    summary << "**" << senderName << "** " << action << " a review comment on PR #" << prNumber << "\n";
+    if (!filePath.empty()) {
+        summary << "File: `" << filePath << "`";
+        if (startLine > 0) {
+            summary << " L" << startLine;
+            if (line > startLine) {
+                summary << "-L" << line;
+            }
+        } else if (line > 0) {
+            summary << " L" << line;
+        }
+        summary << "\n";
+    }
+
+    if (!commentBody.empty()) {
+        std::string preview = commentBody.size() > 300 ? commentBody.substr(0, 300) + "..." : commentBody;
+        summary << "\n" << preview;
+    }
+    card.addElement(LarkCardProtocol::markdownElement(summary.str()));
+
+    if (!commentUrl.empty()) {
+        card.addElement(LarkCardProtocol::buttonElement("View Comment", commentUrl));
+    }
+    card.addElement(LarkCardProtocol::buttonElement("View Pull Request", prUrl));
+
+    card.build();
+
+    Json::Value cardJson;
+    card.getData(cardJson);
+
+    sendFeishuMessage(cardJson.toStyledString());
+
+    INFO(logger) << "pull_request_review_comment event: " << repoName << " PR #" << prNumber
+        << " file=" << filePath << " by " << senderName;
 
     return true;
 }
