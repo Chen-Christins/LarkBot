@@ -47,12 +47,12 @@ feishu:
 
 支持飞书签名验证（可选）：
 
-```yaml
-feishu:
-  webhook_url: "..."
-  enable_signature: 1
-  secret: "your-feishu-secret"
-```
+    feishu:
+      webhook_url: "..."
+      enable_signature: 1
+      secret: "your-feishu-secret"
+
+注意：`webhook_url` 和 `secret` 属于敏感信息，请勿提交到代码仓库。
 
 ### 运行
 
