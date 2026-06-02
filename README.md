@@ -22,7 +22,7 @@ GitHub Webhook → 飞书消息通知机器人。接收 GitHub Webhook 事件，
 
 - cmake >= 3.22
 - g++ (C++20)
-- chen-sdk-1.2.1 — HTTP 服务框架
+- chen-sdk-*（放在项目根目录下，例如 `chen-sdk-1.2.1`）— HTTP 服务框架
 - jsoncpp, yaml-cpp, libevent, openssl
 
 ### 编译
