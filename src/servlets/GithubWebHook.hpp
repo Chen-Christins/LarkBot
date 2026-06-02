@@ -20,6 +20,8 @@ enum class GithubEvent {
     WORKFLOW_RUN,
     RELEASE,
     WATCH,
+    PULL_REQUEST_REVIEW,
+    PULL_REQUEST_REVIEW_COMMENT,
     UNKNOWN
 };
 
@@ -78,6 +80,16 @@ private:
      * @brief 处理 watch (star) 事件
      */
     bool handleWatchEvent(const Json::Value& payload, Result::ptr result);
+
+    /**
+     * @brief 处理 pull_request_review 事件
+     */
+    bool handlePullRequestReviewEvent(const Json::Value& payload, Result::ptr result);
+
+    /**
+     * @brief 处理 pull_request_review_comment 事件
+     */
+    bool handlePullRequestReviewCommentEvent(const Json::Value& payload, Result::ptr result);
 
 private:
     /**
