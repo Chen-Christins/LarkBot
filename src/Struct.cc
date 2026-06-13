@@ -26,13 +26,6 @@ std::string Result::toJsonString() const {
     v["used"] = ((chen::GetCurrentUs() - used) / 1000.0);
     if (!jsondata.isNull()) {
         v["data"] = jsondata;
-    } else {
-        // if (!datas.empty()) {
-        //     auto& d = v["data"];
-        //     for (auto& [key, value] : datas) {
-        //         d[key] = value;
-        //     }
-        // }
     }
     return chen::JsonUtil::ToString(v);
 }

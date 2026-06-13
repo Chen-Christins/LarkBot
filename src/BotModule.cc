@@ -44,7 +44,7 @@ bool BotModule::onServerUp() {
 }
 
 void BotModule::registerServlets(std::vector<chen::TcpServer::ptr>& servers) {
-INFO(logger) << "registerServlets";
+    INFO(logger) << "registerServlets";
 
 	for (auto& i : servers) {
         auto hs = std::dynamic_pointer_cast<chen::http::HttpServer>(i);
