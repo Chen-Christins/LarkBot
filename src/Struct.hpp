@@ -19,7 +19,6 @@ struct Result {
     int32_t code;
     int64_t used;
     std::string msg;
-    // std::map<std::string, std::string> datas;
     Json::Value jsondata;
 
     template <class T>
