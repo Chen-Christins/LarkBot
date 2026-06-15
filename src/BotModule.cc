@@ -43,6 +43,16 @@ bool BotModule::onServerUp() {
     return true;
 }
 
+bool BotModule::onDrain() {
+    INFO(logger) << "onDrain";
+    return true;
+}
+
+bool BotModule::onGracefulUnload() {
+    INFO(logger) << "onGracefulUnload";
+    return true;
+}
+
 void BotModule::registerServlets(std::vector<chen::TcpServer::ptr>& servers) {
     INFO(logger) << "registerServlets";
 
