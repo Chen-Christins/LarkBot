@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(S1GameServer)
+project(LarkBot)
 
 set(ROOT_DIR ${PROJECT_SOURCE_DIR})
 

@@ -43,6 +43,18 @@ public:
      */
     bool onServerUp() override;
 
+    /**
+     * @brief 热重载排空阶段（蓝绿部署）：关闭 WS 连接、停止定时器
+     * @return bool
+     */
+    bool onDrain() override;
+
+    /**
+     * @brief 热重载排空完成（蓝绿部署）：释放非 dispatch 资源
+     * @return bool
+     */
+    bool onGracefulUnload() override;
+
 private:
     /**
      * @brief 注册Servlets
