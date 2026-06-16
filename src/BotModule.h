@@ -20,6 +20,20 @@ public:
     BotModule();
 
     /**
+     * @brief 模块初始化前调用
+     * @param argc 命令行参数数量
+     * @param argv 命令行参数数组
+     */
+    void onBeforeArgsParse(int argc, char** argv) override;
+
+    /**
+     * @brief 模块初始化后调用
+     * @param argc 命令行参数数量
+     * @param argv 命令行参数数组
+     */
+    void onAfterArgsParse(int argc, char** argv) override;
+
+    /**
      * @brief 模块加载时调用
      * @return bool 是否成功
      */
@@ -54,6 +68,17 @@ public:
      * @return bool
      */
     bool onGracefulUnload() override;
+
+    /**
+     * @brief 模块每个 Tick 调用一次
+     */
+    void onTick() override;
+
+    /**
+     * @brief 获取 Tick 间隔时间（毫秒）默认 0 表示不使用 Tick
+     * @return uint64_t
+     */
+    uint64_t getTickIntervalMs() override;
 
 private:
     /**

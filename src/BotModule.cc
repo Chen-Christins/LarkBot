@@ -14,6 +14,14 @@ BotModule::BotModule()
     : chen::Module("BotModule", "1.0.0", "") {
 }
 
+void BotModule::onBeforeArgsParse(int argc, char** argv) {
+    INFO(logger) << "onBeforeArgsParse";
+}
+
+void BotModule::onAfterArgsParse(int argc, char** argv) {
+    INFO(logger) << "onAfterArgsParse";
+}
+
 bool BotModule::onLoad() {
     INFO(logger) << "onLoad";
     return true;
@@ -51,6 +59,14 @@ bool BotModule::onDrain() {
 bool BotModule::onGracefulUnload() {
     INFO(logger) << "onGracefulUnload";
     return true;
+}
+
+void BotModule::onTick() {
+    INFO(logger) << "onTick";
+}
+
+uint64_t BotModule::getTickIntervalMs() {
+    return 0;
 }
 
 void BotModule::registerServlets(std::vector<chen::TcpServer::ptr>& servers) {
