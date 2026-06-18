@@ -8,6 +8,7 @@
 #pragma once
 
 #include <chen/http/servlet.h>
+
 #include "../Struct.hpp"
 
 namespace bot {
@@ -30,9 +31,9 @@ public:
     GithubWebHook();
 
     virtual int32_t handle(chen::http::HttpRequest::ptr request, 
-                   chen::http::HttpResponse::ptr response, 
-                   chen::http::HttpSession::ptr session,
-                   Result::ptr result) override;
+                           chen::http::HttpResponse::ptr response, 
+                           chen::http::HttpSession::ptr session,
+                           Result::ptr result) override;
 
     static GithubEvent parseEvent(const std::string& event);
 

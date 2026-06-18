@@ -1,19 +1,19 @@
 #include <chen/application.h>
 #include <chen/log/log.h>
-#include <random>
 
 static chen::Logger::ptr logger = LOG_NAME("bot");
 
 int main(int argc, char** argv) {
+    int ret = 0;
     try {
-        std::random_device rd;
-        srand(rd());
-
-        if (chen::Application app; app.init(argc, argv)) {
-            return app.run();
+        srand(time(0));
+        chen::Application app;
+        if (app.init(argc, argv)) {
+            ret = app.run();
         }
     } catch (const std::exception& e) {
         ERROR(logger) << "Exception: " << e.what();
     }
-    return 0;
+
+    std::_Exit(ret);
 }
