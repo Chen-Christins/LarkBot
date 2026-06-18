@@ -90,12 +90,10 @@ extern "C" {
 
 chen::Module* CreateModule() {
     chen::Module* module = new bot::BotModule;
-    INFO(bot::logger) << "CreateModule " << module;
     return module;
 }
 
 void DestroyModule(chen::Module* module) {
-    INFO(bot::logger) << "DestroyModule " << module;
     delete module;
 }
 }
