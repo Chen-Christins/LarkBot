@@ -32,7 +32,7 @@ struct Result {
         jsondata[key] = v;
     }
 
-    template<class T>
+    template <class T>
     void append(const std::string& key, const T& v) {
         jsondata[key].append(v);
     }
