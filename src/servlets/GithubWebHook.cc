@@ -40,8 +40,10 @@ GithubEvent GithubWebHook::parseEvent(const std::string& event) {
         return GithubEvent::PULL_REQUEST_REVIEW;
     } else if (event == "pull_request_review_comment") {
         return GithubEvent::PULL_REQUEST_REVIEW_COMMENT;
+    } else if (event == "fork") {
+        return GithubEvent::FORK;
     } else {
-        ERROR(logger) << "unsupported github event: " << event;
+        WARN(logger) << "unsupported github event: " << event;
         return GithubEvent::UNKNOWN;
     }
 }
@@ -114,6 +116,12 @@ int32_t GithubWebHook::handle(chen::http::HttpRequest::ptr request
         case GithubEvent::PULL_REQUEST_REVIEW_COMMENT:
             if (!handlePullRequestReviewCommentEvent(payload, result)) {
                 result->setResult(500, "failed to handle pull_request_review_comment event");
+                break;
+            }
+            break;
+        case GithubEvent::FORK:
+            if (!handleForkEvent(payload, result)) {
+                result->setResult(500, "failed to handle fork event");
                 break;
             }
             break;
@@ -743,6 +751,53 @@ bool GithubWebHook::handlePullRequestReviewCommentEvent(const Json::Value& paylo
 
     INFO(logger) << "pull_request_review_comment event: " << repoName << " PR #" << prNumber
         << " file=" << filePath << " by " << senderName;
+
+    return true;
+}
+
+bool GithubWebHook::handleForkEvent(const Json::Value& payload, Result::ptr result) {
+    const Json::Value& forkee = payload["forkee"];
+    const Json::Value& repo = payload["repository"];
+    const Json::Value& sender = payload["sender"];
+
+    std::string repoName = repo.get("full_name", "").asString();
+    std::string forkeeName = forkee.get("full_name", "").asString();
+    std::string senderName = sender.get("login", "").asString();
+    std::string forkeeUrl = forkee.get("html_url", "").asString();
+    std::string repoUrl = repo.get("html_url", "").asString();
+    std::string description = forkee.get("description", "").asString();
+    int forksCount = repo.get("forks_count", 0).asInt();
+
+    LarkCardProtocol card;
+
+    card.setHeader("[" + repoName + "] New Fork 🍴", "", "purple");
+
+    std::ostringstream summary;
+    summary << "**" << senderName << "** forked " << repoName << "\n"
+            << "Fork: **" << forkeeName << "**\n"
+            << "Total forks: **" << forksCount << "** 🍴";
+
+    if (!description.empty()) {
+        summary << "\n\n" << description;
+    }
+    card.addElement(LarkCardProtocol::markdownElement(summary.str()));
+
+    if (!forkeeUrl.empty()) {
+        card.addElement(LarkCardProtocol::buttonElement("View Fork", forkeeUrl));
+    }
+    if (!repoUrl.empty()) {
+        card.addElement(LarkCardProtocol::buttonElement("View Original Repository", repoUrl));
+    }
+
+    card.build();
+
+    Json::Value cardJson;
+    card.getData(cardJson);
+
+    sendFeishuMessage(cardJson.toStyledString());
+
+    INFO(logger) << "fork event: " << senderName << " forked " << repoName
+        << " -> " << forkeeName << " (total forks: " << forksCount << ")";
 
     return true;
 }

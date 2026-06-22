@@ -23,6 +23,7 @@ enum class GithubEvent {
     WATCH,
     PULL_REQUEST_REVIEW,
     PULL_REQUEST_REVIEW_COMMENT,
+    FORK,
     UNKNOWN
 };
 
@@ -91,6 +92,11 @@ private:
      * @brief 处理 pull_request_review_comment 事件
      */
     bool handlePullRequestReviewCommentEvent(const Json::Value& payload, Result::ptr result);
+
+    /**
+     * @brief 处理 fork 事件
+     */
+    bool handleForkEvent(const Json::Value& payload, Result::ptr result);
 
 private:
     /**
