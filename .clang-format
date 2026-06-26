@@ -1,4 +1,4 @@
-BasedOnStyle: Google
+BasedOnStyle: LLVM
 
 # 对齐连续的宏定义
 AlignConsecutiveMacros: AcrossEmptyLinesAndComments
@@ -18,14 +18,14 @@ PointerAlignment: Left
 # 模板声明总是换行
 AlwaysBreakTemplateDeclarations: true
 
-# 使用2个空格缩进
-IndentWidth: 2
+# 使用4个空格缩进
+IndentWidth: 4
 
-# 使用2个空格表示一个制表符
-TabWidth: 2
+# 使用4个空格表示一个制表符
+TabWidth: 4
 
 # 设置访问修饰符（public/private/protected）的缩进偏移为0
-AccessModifierOffset: -2
+AccessModifierOffset: -4
 
 # 控制每行最大空行数（避免空行过多）
 MaxEmptyLinesToKeep: 1

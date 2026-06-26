@@ -8,6 +8,7 @@ include(cmake/common.cmake)
 include(cmake/dependencies.cmake)
 
 include_directories(.)
+include_directories(${PROJECT_SOURCE_DIR}/protocol/include)
 
 # 创建博客服务器模块
 create_server_module(bot

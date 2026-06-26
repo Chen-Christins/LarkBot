@@ -1,8 +1,6 @@
 #include "Struct.hpp"
 
 #include <chen/util/util.h>
-#include <openssl/hmac.h>
-#include <openssl/evp.h>
 
 #include <ctime>
 
@@ -46,24 +44,12 @@ int32_t LarkBotServlet::handle(chen::http::HttpRequest::ptr request
     return ret;
 }
 
-static std::string base64Encode(const unsigned char* data, size_t len) {
-    size_t outLen = 4 * ((len + 2) / 3);
-    std::string output(outLen, '\0');
-    int actualLen = EVP_EncodeBlock(reinterpret_cast<unsigned char*>(output.data()), data, len);
-    output.resize(actualLen);
-    return output;
-}
-
 std::string feishuSign(const std::string& secret, int64_t timestamp) {
     std::string signKey = std::to_string(timestamp) + "\n" + secret;
 
-    unsigned char result[EVP_MAX_MD_SIZE];
-    unsigned int len = 0;
-    HMAC(EVP_sha256(), signKey.data(), static_cast<int>(signKey.size()),
-        reinterpret_cast<const unsigned char*>(""), 0,
-        result, &len);
+    std::string sign = chen::EncryptorUtil::HMAC_SHA256("", signKey);
 
-    return base64Encode(result, len);
+    return chen::StringUtil::Base64Encode(sign);
 }
 
 } // namespace bot

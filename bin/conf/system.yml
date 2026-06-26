@@ -77,3 +77,7 @@ feishu:
   webhook_url: ""
   enable_signature: 0
   secret: ""
+
+# blog 后端 RPC 服务地址，用于转发 GitHub webhook 数据
+blog:
+  rpc_address: "127.0.0.1:8092"
