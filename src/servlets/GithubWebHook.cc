@@ -4,18 +4,109 @@
 #include <chen/config/config.h>
 #include <chen/http/http_connection.h>
 #include <chen/iomanager/iomanager.h>
+#include <chen/rpc/rpc_client_pool.h>
 
 #include <sstream>
 
 #include "../Struct.hpp"
 #include "../protocol/LarkCardProtocol.hpp"
+#include "protocol_ss_github.h"
 
 namespace bot {
 
 static chen::Logger::ptr logger = LOG_NAME("bot");
 
-static chen::ConfigVar<std::string>::ptr g_feishu_webhook_url = 
+static chen::ConfigVar<std::string>::ptr g_feishu_webhook_url =
     chen::Config::Lookup<std::string>("feishu.webhook_url", "", "飞书 Webhook 地址");
+
+static chen::ConfigVar<std::string>::ptr g_blog_rpc_address =
+    chen::Config::Lookup<std::string>("blog.rpc_address", "127.0.0.1:8092", "blog 后端 RPC 地址");
+
+/// tagGithubPRInfo 转字符串（用于日志打印）
+static std::string InfoToString(const tagGithubPRInfo& info) {
+    std::ostringstream oss;
+    oss << "PR #" << info.Number
+        << " Action=" << info.Action
+        << " Title=" << info.Title
+        << " State=" << info.State
+        << " Author=" << info.Author
+        << " HeadBranch=" << info.HeadBranch
+        << " BaseBranch=" << info.BaseBranch
+        << " HeadSha=" << info.HeadSha
+        << " Merged=" << (info.Merged ? "true" : "false")
+        << " ChangedFiles=" << info.ChangedFiles
+        << " Additions=" << info.Additions
+        << " Deletions=" << info.Deletions
+        << " CreatedAt=" << info.CreatedAt
+        << " ClosedAt=" << info.ClosedAt
+        << " MergedAt=" << info.MergedAt
+        << " RepoOwner=" << info.RepoOwner
+        << " RepoName=" << info.RepoName;
+    return oss.str();
+}
+
+/// tagGithubPRReviewInfo 转字符串（用于日志打印）
+static std::string ReviewInfoToString(const tagGithubPRReviewInfo& info) {
+    std::ostringstream oss;
+    oss << "PR #" << info.PRNumber
+        << " Action=" << info.Action
+        << " Reviewer=" << info.Reviewer
+        << " State=" << info.State
+        << " SubmittedAt=" << info.SubmittedAt
+        << " RepoOwner=" << info.RepoOwner
+        << " RepoName=" << info.RepoName;
+    return oss.str();
+}
+
+/// 异步转发 PR 数据到 blog 后端
+static void ForwardPRToBlog(const tagGithubPRInfo& info) {
+    std::string addr = g_blog_rpc_address->getValue();
+    if (addr.empty()) {
+        WARN(logger) << "blog.rpc_address not configured, skip forwarding PR #" << info.Number;
+        return;
+    }
+    chen::Scheduler::GetThis()->schedule([addr, info]() {
+        try {
+            auto client = chen::rpc::RpcClientPoolMgr::GetInstance()->getClient(addr);
+            int32_t ret = client->call<int32_t>("GithubPRWebhook", info);
+
+            DEBUG(logger) << "ForwardPRToBlog: " << InfoToString(info);
+
+            if (ret == 0) {
+                INFO(logger) << "ForwardPRToBlog: PR #" << info.Number << " synced OK";
+            } else {
+                WARN(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, ret=" << ret;
+            }
+        } catch (std::exception& e) {
+            WARN(logger) << "ForwardPRToBlog: PR #" << info.Number
+                << " RPC call failed: " << e.what();
+        }
+    });
+}
+
+/// 异步转发 PR Review 数据到 blog 后端
+static void ForwardPRReviewToBlog(const tagGithubPRReviewInfo& info) {
+    std::string addr = g_blog_rpc_address->getValue();
+    if (addr.empty()) {
+        WARN(logger) << "blog.rpc_address not configured, skip forwarding review";
+        return;
+    }
+    chen::Scheduler::GetThis()->schedule([addr, info]() {
+        try {
+            auto client = chen::rpc::RpcClientPoolMgr::GetInstance()->getClient(addr);
+            int32_t ret = client->call<int32_t>("GithubPRReviewWebhook", info);
+            INFO(logger) << "ForwardPRReviewToBlog: " << ReviewInfoToString(info);
+            if (ret == 0) {
+                INFO(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " synced OK";
+            } else {
+                WARN(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, ret=" << ret;
+            }
+        } catch (std::exception& e) {
+            WARN(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber
+                << " RPC call failed: " << e.what();
+        }
+    });
+}
 
 GithubWebHook::GithubWebHook()
     : LarkBotServlet("github_webhook") {
@@ -347,6 +438,35 @@ bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::p
 
     INFO(logger) << "pull_request event: " << repoName << " #" << number
         << " action=" << action << " " << headRef << "->" << baseRef;
+
+    // 转发到 blog 后端
+    {
+        tagGithubPRInfo blog_info;
+        blog_info.Action     = action;
+        blog_info.Number     = number;
+        blog_info.Title      = title;
+        blog_info.Body       = body;
+        blog_info.State      = state;
+        blog_info.Author     = senderName;
+        blog_info.HeadBranch = headRef;
+        blog_info.BaseBranch = baseRef;
+        blog_info.HeadSha    = pr["head"]["sha"].asString();
+        blog_info.Merged     = merged;
+        blog_info.ChangedFiles = pr.get("changed_files", 0).asInt();
+        blog_info.Additions    = pr.get("additions", 0).asInt();
+        blog_info.Deletions    = pr.get("deletions", 0).asInt();
+        blog_info.CreatedAt  = pr.get("created_at", "").asString();
+        blog_info.ClosedAt   = pr.get("closed_at", "").asString();
+        blog_info.MergedAt   = pr.get("merged_at", "").asString();
+        // full_name = "owner/repo"
+        std::string fullName = repo.get("full_name", "").asString();
+        auto slash_pos = fullName.find('/');
+        if (slash_pos != std::string::npos) {
+            blog_info.RepoOwner = fullName.substr(0, slash_pos);
+            blog_info.RepoName  = fullName.substr(slash_pos + 1);
+        }
+        ForwardPRToBlog(blog_info);
+    }
 
     return true;
 }
@@ -690,6 +810,24 @@ bool GithubWebHook::handlePullRequestReviewEvent(const Json::Value& payload, Res
 
     INFO(logger) << "pull_request_review event: " << repoName << " PR #" << prNumber
         << " state=" << reviewState << " by " << senderName;
+
+    // 转发到 blog 后端
+    {
+        tagGithubPRReviewInfo blog_info;
+        blog_info.Action      = action;
+        blog_info.PRNumber    = prNumber;
+        blog_info.Reviewer    = senderName;
+        blog_info.State       = reviewState;
+        blog_info.SubmittedAt = review.get("submitted_at", "").asString();
+        // full_name = "owner/repo"
+        std::string fullName = repo.get("full_name", "").asString();
+        auto slash_pos = fullName.find('/');
+        if (slash_pos != std::string::npos) {
+            blog_info.RepoOwner = fullName.substr(0, slash_pos);
+            blog_info.RepoName  = fullName.substr(slash_pos + 1);
+        }
+        ForwardPRReviewToBlog(blog_info);
+    }
 
     return true;
 }
