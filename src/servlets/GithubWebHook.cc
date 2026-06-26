@@ -95,7 +95,9 @@ static void ForwardPRReviewToBlog(const tagGithubPRReviewInfo& info) {
         try {
             auto client = chen::rpc::RpcClientPoolMgr::GetInstance()->getClient(addr);
             int32_t ret = client->call<int32_t>("GithubPRReviewWebhook", info);
-            INFO(logger) << "ForwardPRReviewToBlog: " << ReviewInfoToString(info);
+            
+            DEBUG(logger) << "ForwardPRReviewToBlog: " << ReviewInfoToString(info);
+
             if (ret == 0) {
                 INFO(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " synced OK";
             } else {
