@@ -444,28 +444,28 @@ bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::p
     // 转发到 blog 后端
     {
         tagGithubPRInfo blog_info;
-        blog_info.Action     = action;
-        blog_info.Number     = number;
-        blog_info.Title      = title;
-        blog_info.Body       = body;
-        blog_info.State      = state;
-        blog_info.Author     = senderName;
+        blog_info.Action = action;
+        blog_info.Number = number;
+        blog_info.Title = title;
+        blog_info.Body = body;
+        blog_info.State = state;
+        blog_info.Author = senderName;
         blog_info.HeadBranch = headRef;
         blog_info.BaseBranch = baseRef;
-        blog_info.HeadSha    = pr["head"]["sha"].asString();
-        blog_info.Merged     = merged;
+        blog_info.HeadSha = pr["head"]["sha"].asString();
+        blog_info.Merged = merged;
         blog_info.ChangedFiles = pr.get("changed_files", 0).asInt();
-        blog_info.Additions    = pr.get("additions", 0).asInt();
-        blog_info.Deletions    = pr.get("deletions", 0).asInt();
-        blog_info.CreatedAt  = pr.get("created_at", "").asString();
-        blog_info.ClosedAt   = pr.get("closed_at", "").asString();
-        blog_info.MergedAt   = pr.get("merged_at", "").asString();
+        blog_info.Additions = pr.get("additions", 0).asInt();
+        blog_info.Deletions = pr.get("deletions", 0).asInt();
+        blog_info.CreatedAt = pr.get("created_at", "").asString();
+        blog_info.ClosedAt = pr.get("closed_at", "").asString();
+        blog_info.MergedAt = pr.get("merged_at", "").asString();
         // full_name = "owner/repo"
         std::string fullName = repo.get("full_name", "").asString();
         auto slash_pos = fullName.find('/');
         if (slash_pos != std::string::npos) {
             blog_info.RepoOwner = fullName.substr(0, slash_pos);
-            blog_info.RepoName  = fullName.substr(slash_pos + 1);
+            blog_info.RepoName = fullName.substr(slash_pos + 1);
         }
         ForwardPRToBlog(blog_info);
     }
@@ -816,17 +816,17 @@ bool GithubWebHook::handlePullRequestReviewEvent(const Json::Value& payload, Res
     // 转发到 blog 后端
     {
         tagGithubPRReviewInfo blog_info;
-        blog_info.Action      = action;
-        blog_info.PRNumber    = prNumber;
-        blog_info.Reviewer    = senderName;
-        blog_info.State       = reviewState;
+        blog_info.Action = action;
+        blog_info.PRNumber = prNumber;
+        blog_info.Reviewer = senderName;
+        blog_info.State = reviewState;
         blog_info.SubmittedAt = review.get("submitted_at", "").asString();
         // full_name = "owner/repo"
         std::string fullName = repo.get("full_name", "").asString();
         auto slash_pos = fullName.find('/');
         if (slash_pos != std::string::npos) {
             blog_info.RepoOwner = fullName.substr(0, slash_pos);
-            blog_info.RepoName  = fullName.substr(slash_pos + 1);
+            blog_info.RepoName = fullName.substr(slash_pos + 1);
         }
         ForwardPRReviewToBlog(blog_info);
     }
