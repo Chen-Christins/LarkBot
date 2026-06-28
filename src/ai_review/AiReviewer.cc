@@ -394,7 +394,7 @@ std::string AiReviewer::buildReviewPrompt(const std::string& diff, const std::st
            << "### 审查详情\n"
            << "然后按维度列出发现的问题，每个问题请标注：\n"
            << "- 严重程度: 🔴 严重 / 🟡 中等 / 🟢 建议\n"
-           << "- 文件位置: 具体的文件名和行号（如果有）\n"
+           << "- 文件位置: 使用 `file:line` 格式，方便编辑器跳转（例如 `src/main.cc:42` 或 `src/main.cc:42-48`）\n"
            << "- 问题描述与改进建议\n\n"
            << "### 评分\n"
            << "末尾给出综合评分：\n"
