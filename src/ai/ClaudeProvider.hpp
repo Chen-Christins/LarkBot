@@ -21,10 +21,15 @@ public:
                              const std::string& prompt, bool stream = true) override;
 
     std::string endpointSuffix() const override;
+
     std::string extractContent(const Json::Value& parsed) override;
+    
     std::string extractNonStreamingContent(const Json::Value& parsed) override;
+    
     bool isTerminal(const Json::Value& parsed) override;
+    
     std::string getError(const Json::Value& parsed) override;
+    
     void authHeaders(const std::string& apiKey, std::map<std::string, std::string>& outHeaders) override;
 };
 

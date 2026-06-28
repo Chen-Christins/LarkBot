@@ -23,22 +23,25 @@ static chen::ConfigVar<std::string>::ptr g_github_private_key_path =
     chen::Config::Lookup<std::string>("github.private_key_path", "", "GitHub App 私钥文件路径");
 
 static chen::ConfigVar<std::string>::ptr g_ai_provider =
-    chen::Config::Lookup<std::string>("ai.provider", "openai", "AI 厂商: openai / claude");
+    chen::Config::Lookup<std::string>("ai_review.provider", "openai", "AI 厂商: openai / claude");
 
 static chen::ConfigVar<std::string>::ptr g_ai_api_key =
-    chen::Config::Lookup<std::string>("ai.api_key", "", "AI API Key");
+    chen::Config::Lookup<std::string>("ai_review.api_key", "", "AI API Key");
 
 static chen::ConfigVar<std::string>::ptr g_ai_api_url =
-    chen::Config::Lookup<std::string>("ai.api_url", "https://api.openai.com/v1", "AI API 基础地址");
+    chen::Config::Lookup<std::string>("ai_review.api_url", "https://api.openai.com/v1", "AI API 基础地址");
 
 static chen::ConfigVar<std::string>::ptr g_ai_model =
-    chen::Config::Lookup<std::string>("ai.model", "gpt-4o", "AI 模型名");
+    chen::Config::Lookup<std::string>("ai_review.model", "gpt-4o", "AI 模型名");
 
 static chen::ConfigVar<int32_t>::ptr g_ai_max_tokens =
-    chen::Config::Lookup<int32_t>("ai.max_tokens", 4096, "AI 最大输出 token");
+    chen::Config::Lookup<int32_t>("ai_review.max_tokens", 4096, "AI 最大输出 token");
 
 static chen::ConfigVar<std::string>::ptr g_ai_review_trigger =
-    chen::Config::Lookup<std::string>("ai.review_trigger", "opened,synchronize", "触发 review 的 PR action 列表");
+    chen::Config::Lookup<std::string>("ai_review.review_trigger", "opened,synchronize", "触发 review 的 PR action 列表");
+
+static chen::ConfigVar<std::string>::ptr g_ai_review_comment_mode =
+    chen::Config::Lookup<std::string>("ai_review.review_comment_mode", "update", "评论模式: update(增量) / append(每次新评论)");
 
 std::string AiReviewer::generateJWT(const std::string& appId, const std::string& privateKeyPath) {
     if (appId.empty()) {
@@ -101,6 +104,8 @@ static std::string githubApiCall(const std::string& method, const std::string& u
     chen::http::HttpMethod httpMethod = chen::http::HttpMethod::GET;
     if (method == "POST") {
         httpMethod = chen::http::HttpMethod::POST;
+    } else if (method == "PATCH") {
+        httpMethod = chen::http::HttpMethod::PATCH;
     }
 
     auto ret = chen::http::HttpConnection::DoRequest(httpMethod, url, timeoutMs, headers, body);
@@ -193,15 +198,56 @@ std::string AiReviewer::getPRDiff(const std::string& token, const std::string& o
     return ret->toString();
 }
 
-void AiReviewer::postReviewComment(const std::string& token, const std::string& owner
-        , const std::string& repo, int prNumber, const std::string& review) {
+/// 查找 PR 上已有的 AI review 评论 ID，未找到返回 -1
+static int64_t findExistingReviewComment(const std::string& token, const std::string& owner
+        , const std::string& repo, int prNumber) {
     std::string url = std::string(kGithubApiBase)
         + "/repos/" + owner + "/" + repo + "/issues/" + std::to_string(prNumber) + "/comments";
+
+    std::string resp = githubApiCall("GET", url, token, "", 30000);
+    if (resp.empty()) return -1;
+
+    Json::Value comments;
+    if (!chen::JsonUtil::FromString(comments, resp) || !comments.isArray()) return -1;
+
+    for (const auto& c : comments) {
+        std::string body = c["body"].asString();
+        if (body.find("🤖 AI 代码审查报告") != std::string::npos) {
+            return c["id"].asInt64();
+        }
+    }
+    return -1;
+}
+
+void AiReviewer::postReviewComment(const std::string& token, const std::string& owner
+        , const std::string& repo, int prNumber, const std::string& review) {
+    std::string mode = g_ai_review_comment_mode->getValue();
 
     Json::Value body;
     body["body"] = review;
     std::string bodyStr = chen::JsonUtil::ToString(body);
 
+    if (mode == "update") {
+        // 查找已有 AI review 评论并更新
+        int64_t commentId = findExistingReviewComment(token, owner, repo, prNumber);
+        if (commentId > 0) {
+            std::string url = std::string(kGithubApiBase)
+                + "/repos/" + owner + "/" + repo + "/issues/comments/" + std::to_string(commentId);
+            std::string resp = githubApiCall("PATCH", url, token, bodyStr, 30000);
+            if (resp.empty()) {
+                ERROR(logger) << "postReviewComment: failed to update comment " << commentId << " for PR #" << prNumber;
+                return;
+            }
+            INFO(logger) << "postReviewComment: comment " << commentId << " updated for PR #" << prNumber;
+            return;
+        }
+        // 未找到已有评论，回退到新建
+        INFO(logger) << "postReviewComment: no existing AI review comment found, creating new one for PR #" << prNumber;
+    }
+
+    // append 模式或 update 模式未找到已有评论：新建
+    std::string url = std::string(kGithubApiBase)
+        + "/repos/" + owner + "/" + repo + "/issues/" + std::to_string(prNumber) + "/comments";
     std::string resp = githubApiCall("POST", url, token, bodyStr, 30000);
     if (resp.empty()) {
         ERROR(logger) << "postReviewComment: failed to post comment for PR #" << prNumber;
@@ -249,7 +295,7 @@ std::string AiReviewer::callAIReview(const std::string& diff, const std::string&
     int32_t maxTokens = g_ai_max_tokens->getValue();
 
     if (apiKey.empty()) {
-        ERROR(logger) << "callAIReview: ai.api_key is not configured";
+        ERROR(logger) << "callAIReview: ai_review.api_key is not configured";
         return "❌ AI 审查失败: API Key 未配置";
     }
 
