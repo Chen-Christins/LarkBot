@@ -81,3 +81,17 @@ feishu:
 # blog 后端 RPC 服务地址，用于转发 GitHub webhook 数据
 blog:
   rpc_address: "127.0.0.1:8092"
+
+# GitHub App 配置，用于 AI review 认证
+github:
+  app_id: ""
+  private_key_path: ""
+
+# AI 代码审查配置
+ai:
+  provider: "openai"                                           # AI 厂商: openai / claude
+  api_key: ""
+  api_url: "https://api.openai.com/v1"                         # 兼容 OpenAI API 的地址
+  model: "gpt-4o"                                              # 模型名
+  max_tokens: 4096                                             # 最大输出 token
+  review_trigger: "opened,synchronize"                         # 触发 review 的 PR action 列表

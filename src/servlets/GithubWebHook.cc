@@ -10,6 +10,7 @@
 
 #include "../Struct.hpp"
 #include "../protocol/LarkCardProtocol.hpp"
+#include "../ai_review/AiReviewer.hpp"
 #include "protocol_ss_github.h"
 
 namespace bot {
@@ -440,6 +441,9 @@ bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::p
 
     INFO(logger) << "pull_request event: " << repoName << " #" << number
         << " action=" << action << " " << headRef << "->" << baseRef;
+
+    // 异步触发 AI 代码审查
+    AiReviewer::reviewPullRequest(payload);
 
     // 转发到 blog 后端
     {
