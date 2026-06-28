@@ -118,7 +118,11 @@ static std::string githubApiCall(const std::string& method, const std::string& u
             << " result=" << ret->result << " body=" << ret->toString();
         return "";
     }
-    return ret->toString();
+    if (!ret->response) {
+        ERROR(logger) << "GitHub API request no response: " << url;
+        return "";
+    }
+    return ret->response->getBody();
 }
 
 std::string AiReviewer::getInstallationToken(const std::string& jwt, int64_t installationId) {
@@ -132,7 +136,7 @@ std::string AiReviewer::getInstallationToken(const std::string& jwt, int64_t ins
 
     Json::Value parsed;
     if (!chen::JsonUtil::FromString(parsed, resp)) {
-        ERROR(logger) << "getInstallationToken: failed to parse response JSON";
+        ERROR(logger) << "getInstallationToken: failed to parse response JSON, body=" << resp;
         return "";
     }
 
@@ -170,7 +174,7 @@ std::string AiReviewer::getPRDiff(const std::string& token, const std::string& o
             return "";
         }
         // 从 JSON 中提取每个文件的 patch
-        std::string resp = ret->toString();
+        std::string resp = ret->response->getBody();
         Json::Value files;
         if (!chen::JsonUtil::FromString(files, resp) || !files.isArray()) {
             ERROR(logger) << "getPRDiff: failed to parse JSON response";
@@ -195,7 +199,85 @@ std::string AiReviewer::getPRDiff(const std::string& token, const std::string& o
     }
 
     // diff 格式成功，直接返回
-    return ret->toString();
+    if (!ret->response) return "";
+    return ret->response->getBody();
+}
+
+/// 从 AI 审查报告中提取 📋 变更摘要 部分
+static std::string extractSummaryFromReview(const std::string& review) {
+    std::string marker = "### 📋 变更摘要";
+    auto start = review.find(marker);
+    if (start == std::string::npos) {
+        // 兼容旧格式：取前 200 字符作为摘要
+        return review.substr(0, 200);
+    }
+    start += marker.size();
+    auto end = review.find("### 审查详情", start);
+    if (end == std::string::npos) {
+        end = review.find("### 评分", start);
+    }
+    if (end == std::string::npos) {
+        return review.substr(start);
+    }
+    std::string summary = review.substr(start, end - start);
+    // 去掉首尾空白
+    while (!summary.empty() && (summary.back() == ' ' || summary.back() == '\n' || summary.back() == '\r')) {
+        summary.pop_back();
+    }
+    return summary;
+}
+
+/// 更新 PR 描述，追加/刷新 AI 摘要
+static void updatePRSummary(const std::string& token, const std::string& owner
+        , const std::string& repo, int prNumber, const std::string& review) {
+    // 获取当前 PR 描述
+    std::string url = std::string(kGithubApiBase)
+        + "/repos/" + owner + "/" + repo + "/pulls/" + std::to_string(prNumber);
+    std::string resp = githubApiCall("GET", url, token, "", 30000);
+    if (resp.empty()) {
+        ERROR(logger) << "updatePRSummary: failed to get PR #" << prNumber;
+        return;
+    }
+    Json::Value prData;
+    if (!chen::JsonUtil::FromString(prData, resp)) {
+        ERROR(logger) << "updatePRSummary: failed to parse PR data";
+        return;
+    }
+
+    std::string currentBody = prData["body"].asString();
+    std::string summary = extractSummaryFromReview(review);
+    if (summary.empty()) {
+        WARN(logger) << "updatePRSummary: empty summary, skip";
+        return;
+    }
+
+    // 构造新的 PR 描述
+    std::string aiSection = "\n\n---\n## 🤖 AI 审查摘要\n" + summary + "\n";
+    std::string newBody;
+    std::string aiMarker = "## 🤖 AI 审查摘要";
+    auto aiPos = currentBody.find(aiMarker);
+    if (aiPos != std::string::npos) {
+        // 替换已有 AI 摘要段落
+        newBody = currentBody.substr(0, aiPos);
+        // 去掉尾部多余的空白
+        while (!newBody.empty() && (newBody.back() == ' ' || newBody.back() == '\n' || newBody.back() == '\r')) {
+            newBody.pop_back();
+        }
+        newBody += aiSection;
+    } else {
+        // 追加
+        newBody = currentBody + aiSection;
+    }
+
+    Json::Value patchBody;
+    patchBody["body"] = newBody;
+    std::string bodyStr = chen::JsonUtil::ToString(patchBody);
+    resp = githubApiCall("PATCH", url, token, bodyStr, 30000);
+    if (resp.empty()) {
+        ERROR(logger) << "updatePRSummary: failed to update PR #" << prNumber;
+        return;
+    }
+    INFO(logger) << "updatePRSummary: PR #" << prNumber << " description updated";
 }
 
 /// 查找 PR 上已有的 AI review 评论 ID，未找到返回 -1
@@ -277,10 +359,30 @@ std::string AiReviewer::buildReviewPrompt(const std::string& diff, const std::st
            << "4. **代码质量** — 可读性、复杂度、重复代码、命名规范、错误处理等\n"
            << "5. **兼容性破坏** — 是否有破坏向后兼容性的变更\n\n"
            << "## 输出格式\n"
-           << "请使用 Markdown 格式输出审查报告，按维度分类。每个问题请标注：\n"
+           << "请严格按照以下 Markdown 结构输出：\n\n"
+           << "### 📋 变更摘要\n"
+           << "用 2-4 条要点概括 PR 的核心变更，每条 15 字以内。例如：\n"
+           << "\n"
+           << "- 修复了 XX 场景下的空指针崩溃\n"
+           << "- 重构了 XX 模块，拆分出 XX 类\n"
+           << "- 新增了 XX 接口支持 XX 功能\n"
+           << "\n"
+           << "### 审查详情\n"
+           << "然后按维度列出发现的问题，每个问题请标注：\n"
            << "- 严重程度: 🔴 严重 / 🟡 中等 / 🟢 建议\n"
            << "- 文件位置: 具体的文件名和行号（如果有）\n"
            << "- 问题描述与改进建议\n\n"
+           << "### 评分\n"
+           << "末尾给出综合评分：\n"
+           << "```\n"
+           << "**综合评分: XX/100**\n"
+           << "评分依据：...\n"
+           << "```\n"
+           << "评分参考标准：\n"
+           << "- 90-100: 代码质量优秀，仅少量改进建议\n"
+           << "- 70-89: 代码基本良好，有一些小问题\n"
+           << "- 50-69: 存在明显问题，需要改进\n"
+           << "- 0-49: 存在严重问题，建议重大调整\n\n"
            << "如果代码整体质量良好，也请在最后给出正面评价。";
 
     return prompt.str();
@@ -333,13 +435,13 @@ std::string AiReviewer::callAIReview(const std::string& diff, const std::string&
     if (ret->response) {
         int httpStatus = static_cast<int>(ret->response->getStatus());
         if (httpStatus >= 400) {
-            ERROR(logger) << "callAIReview: HTTP " << httpStatus << " body=" << ret->toString();
+            ERROR(logger) << "callAIReview: HTTP " << httpStatus << " body=" << ret->response->getBody();
             return "❌ AI 审查服务返回错误 (HTTP " + std::to_string(httpStatus) + ")";
         }
     }
 
     // 解析响应
-    std::string respBody = ret->toString();
+    std::string respBody = ret->response ? ret->response->getBody() : "";
     Json::Value parsed;
     if (!chen::JsonUtil::FromString(parsed, respBody)) {
         ERROR(logger) << "callAIReview: failed to parse JSON response";
@@ -468,6 +570,9 @@ void AiReviewer::reviewPullRequest(const Json::Value& payload) {
 
         // 5. 发表评论
         AiReviewer::postReviewComment(token, owner, repoName, number, comment.str());
+
+        // 6. 更新 PR 描述追加摘要
+        updatePRSummary(token, owner, repoName, number, review);
 
         INFO(logger) << "AI review completed for " << owner << "/" << repoName << " PR #" << number;
     });
