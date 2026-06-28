@@ -10,6 +10,7 @@
 
 #include "../Struct.hpp"
 #include "../protocol/LarkCardProtocol.hpp"
+#include "../ai_review/AiReviewer.hpp"
 #include "protocol_ss_github.h"
 
 namespace bot {
@@ -441,6 +442,9 @@ bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::p
     INFO(logger) << "pull_request event: " << repoName << " #" << number
         << " action=" << action << " " << headRef << "->" << baseRef;
 
+    // 异步触发 AI 代码审查
+    AiReviewer::reviewPullRequest(payload);
+
     // 转发到 blog 后端
     {
         tagGithubPRInfo blog_info;
@@ -449,7 +453,8 @@ bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::p
         blog_info.Title = title;
         blog_info.Body = body;
         blog_info.State = state;
-        blog_info.Author = senderName;
+        // 使用 PR 创建者（pr.user.login）而非事件触发器（sender），避免 bot 编辑 PR 描述时覆盖作者
+        blog_info.Author = pr["user"]["login"].asString();
         blog_info.HeadBranch = headRef;
         blog_info.BaseBranch = baseRef;
         blog_info.HeadSha = pr["head"]["sha"].asString();

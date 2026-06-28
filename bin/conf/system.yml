@@ -21,8 +21,8 @@ workers:
 
 # Server configuration, including work path, PID file, and email service settings for sending notifications or alerts.
 server:
-  work_path: /home/chen/workspace/Blog
-  pid_file: blog.pid
+  work_path: /home/chen/workspace/LarkBot
+  pid_file: bot.pid
 
 # Logging configuration, defining different loggers for root, system, and access logs with their respective levels, formatters, and appenders.
 logs:
@@ -31,28 +31,28 @@ logs:
     formatter: "[%d{%Y-%m-%d %H:%M:%S.%f}]%T%t%T%N%T[%p]%T[%c]%T%f:%l%T%m%n"
     appenders:
       - type: FileLogAppender
-        file: /home/chen/workspace/Blog/logs/root.log
+        file: /home/chen/workspace/LarkBot/logs/root.log
       - type: StdoutLogAppender
   - name: system
     level: info
     formatter: "[%d{%Y-%m-%d %H:%M:%S.%f}]%T%t%T%N%T[%p]%T[%c]%T%f:%l%T%m%n"
     appenders:
       - type: FileLogAppender
-        file: /home/chen/workspace/Blog/logs/system.log
+        file: /home/chen/workspace/LarkBot/logs/system.log
       - type: StdoutLogAppender
   - name: access
     level: info
     formatter: "[%d{%Y-%m-%d %H:%M:%S.%f}]%T%t%T%N%T[%p]%T[%c]%T%f:%l%T%m%n"
     appenders:
       - type: FileLogAppender
-        file: /home/chen/workspace/Blog/logs/access.log
+        file: /home/chen/workspace/LarkBot/logs/access.log
       - type: StdoutLogAppender
   - name: bot
     level: info
     formatter: "[%d{%Y-%m-%d %H:%M:%S.%f}]%T%t%T%N%T[%p]%T[%c]%T%f:%l%T%m%n"
     appenders:
       - type: FileLogAppender
-        file: /home/chen/workspace/Blog/logs/bot.log
+        file: /home/chen/workspace/LarkBot/logs/bot.log
       - type: StdoutLogAppender
 
 # Redis configuration for Fox Thread, defining the Redis settings for the Fox Thread component, including the name, number of connections, and advance settings.
@@ -81,3 +81,18 @@ feishu:
 # blog 后端 RPC 服务地址，用于转发 GitHub webhook 数据
 blog:
   rpc_address: "127.0.0.1:8092"
+
+# GitHub App 配置，用于 AI review 认证
+github:
+  app_id: ""
+  private_key_path: ""
+
+# AI 代码审查配置（独立于 blog 的 ai 配置）
+ai_review:
+  provider: "openai"                                           # AI 厂商: openai / claude
+  api_key: ""
+  api_url: "https://api.openai.com/v1"                         # 兼容 OpenAI API 的地址
+  model: "gpt-4o"                                              # 模型名
+  max_tokens: 4096                                             # 最大输出 token
+  review_trigger: "opened,synchronize"                         # 触发 review 的 PR action 列表
+  review_comment_mode: "update"                                # 评论模式: update（增量更新）/ append（每次新评论）

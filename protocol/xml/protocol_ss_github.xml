@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <metalib version="1.0" desc="github相关服务的RPC协议定义">
   <header name="protocol_ss_github" desc="github相关服务的RPC协议定义">
-
     <!--
       用于 webhook 服务收到 GitHub 消息后，通过 RPC 转发给 blog 服务。
       两个 struct 分别对应 pull_request 和 pull_request_review 事件。
     -->
-
     <struct name="GithubPRInfo" desc="GitHub Pull Request 事件数据（对应 pull_request webhook）" serialize="true">
       <!-- 事件动作 -->
       <entry name="Action" type="string" desc="事件类型: opened/closed/reopened/synchronize/edited/labeled/unlabeled" />
@@ -22,8 +20,7 @@
       <entry name="HeadSha" type="string" desc="最新 commit SHA" />
       <entry name="Merged" type="bool" desc="是否已合并" />
 
-      <!-- 统计（GitHub 仅在 detail API 中提供，webhook 可能没有，
-            保留字段让 webhook 服务可以补全后发送） -->
+      <!-- 统计（GitHub 仅在 detail API 中提供，webhook 可能没有，保留字段让 webhook 服务可以补全后发送） -->
       <entry name="ChangedFiles" type="int" desc="变更文件数" />
       <entry name="Additions" type="int" desc="新增行数" />
       <entry name="Deletions" type="int" desc="删除行数" />
@@ -49,6 +46,5 @@
       <entry name="RepoOwner" type="string" desc="仓库所有者" />
       <entry name="RepoName" type="string" desc="仓库名称" />
     </struct>
-
   </header>
 </metalib>
