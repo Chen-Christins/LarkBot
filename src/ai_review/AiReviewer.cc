@@ -267,10 +267,10 @@ static void updatePRSummary(const std::string& token, const std::string& owner
     }
 
     // 构造新的 PR 描述
-    std::string aiSection = "\n\n---\n## 🤖 AI 审查摘要\n" + summary + "\n";
     std::string newBody;
+    std::string summarySection = "## 🤖 AI 审查摘要\n" + summary + "\n";
     std::string aiMarker = "## 🤖 AI 审查摘要";
-    auto aiPos = currentBody.find(aiMarker);
+    auto aiPos = currentBody.rfind(aiMarker);
     if (aiPos != std::string::npos) {
         // 替换已有 AI 摘要段落
         newBody = currentBody.substr(0, aiPos);
@@ -278,10 +278,18 @@ static void updatePRSummary(const std::string& token, const std::string& owner
         while (!newBody.empty() && (newBody.back() == ' ' || newBody.back() == '\n' || newBody.back() == '\r')) {
             newBody.pop_back();
         }
-        newBody += aiSection;
+        // 原描述非空时加换行分隔
+        if (!newBody.empty()) {
+            newBody += "\n";
+        }
+        newBody += summarySection;
     } else {
         // 追加
-        newBody = currentBody + aiSection;
+        newBody = currentBody;
+        if (!newBody.empty()) {
+            newBody += "\n";
+        }
+        newBody += summarySection;
     }
 
     Json::Value patchBody;
