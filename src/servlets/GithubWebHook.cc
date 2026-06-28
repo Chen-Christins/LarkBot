@@ -62,7 +62,7 @@ static std::string ReviewInfoToString(const tagGithubPRReviewInfo& info) {
 static void ForwardPRToBlog(const tagGithubPRInfo& info) {
     std::string addr = g_blog_rpc_address->getValue();
     if (addr.empty()) {
-        WARN(logger) << "blog.rpc_address not configured, skip forwarding PR #" << info.Number;
+        ERROR(logger) << "blog.rpc_address not configured, skip forwarding PR #" << info.Number;
         return;
     }
     chen::Scheduler::GetThis()->schedule([addr, info]() {
@@ -75,10 +75,10 @@ static void ForwardPRToBlog(const tagGithubPRInfo& info) {
             if (ret == 0) {
                 INFO(logger) << "ForwardPRToBlog: PR #" << info.Number << " synced OK";
             } else {
-                WARN(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, ret=" << ret;
+                ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, ret=" << ret;
             }
         } catch (std::exception& e) {
-            WARN(logger) << "ForwardPRToBlog: PR #" << info.Number
+            ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number
                 << " RPC call failed: " << e.what();
         }
     });
@@ -88,7 +88,7 @@ static void ForwardPRToBlog(const tagGithubPRInfo& info) {
 static void ForwardPRReviewToBlog(const tagGithubPRReviewInfo& info) {
     std::string addr = g_blog_rpc_address->getValue();
     if (addr.empty()) {
-        WARN(logger) << "blog.rpc_address not configured, skip forwarding review";
+        ERROR(logger) << "blog.rpc_address not configured, skip forwarding review";
         return;
     }
     chen::Scheduler::GetThis()->schedule([addr, info]() {
@@ -101,10 +101,10 @@ static void ForwardPRReviewToBlog(const tagGithubPRReviewInfo& info) {
             if (ret == 0) {
                 INFO(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " synced OK";
             } else {
-                WARN(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, ret=" << ret;
+                ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, ret=" << ret;
             }
         } catch (std::exception& e) {
-            WARN(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber
+            ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber
                 << " RPC call failed: " << e.what();
         }
     });

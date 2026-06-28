@@ -10,7 +10,7 @@
 #include <map>
 #include <shared_mutex>
 
-#include <chen/singleton.h>
+#include <chen/util/singleton.h>
 #include <chen/util/json_util.h>
 
 namespace bot {

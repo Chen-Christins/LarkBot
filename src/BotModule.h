@@ -7,7 +7,7 @@
  */
 #pragma once
 
-#include <chen/module.h>
+#include <chen/module/module.h>
 #include <chen/tcp/tcp_server.h>
 
 namespace bot {
