@@ -7,23 +7,23 @@
 namespace bot {
 
 Result::Result(int32_t c, const std::string& m)
-    : code(c)
-    , used(chen::GetCurrentUs())
-    , msg(m) {
+    : code_(c)
+    , used_(chen::GetCurrentUs())
+    , message_(m) {
 }
 
-void Result::setResult(int32_t c, const std::string& m) {
-    code = c;
-    msg = m;
+void Result::setResult(int32_t c, const std::string& message) {
+    code_ = c;
+    message_ = message;
 }
 
 std::string Result::toJsonString() const {
     Json::Value v;
-    v["code"] = std::to_string(code);
-    v["msg"] = msg;
-    v["used"] = ((chen::GetCurrentUs() - used) / 1000.0);
-    if (!jsondata.isNull()) {
-        v["data"] = jsondata;
+    v["code"] = std::to_string(code_);
+    v["message"] = message_;
+    v["used"] = ((chen::GetCurrentUs() - used_) / 1000.0);
+    if (!jsondata_.isNull()) {
+        v["data"] = jsondata_;
     }
     return chen::JsonUtil::ToString(v);
 }

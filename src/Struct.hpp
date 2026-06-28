@@ -14,30 +14,31 @@ namespace bot {
 
 struct Result {
     typedef std::shared_ptr<Result> ptr;
-    Result(int32_t c = 200, const std::string& msg = "ok");
 
-    int32_t code;
-    int64_t used;
-    std::string msg;
-    Json::Value jsondata;
+    Result(int32_t c = 200, const std::string& message = "ok");
+
+    int32_t code_;
+    int64_t used_;
+    std::string message_;
+    Json::Value jsondata_;
 
     template <class T>
     void set(const std::string& key, const T& v) {
-        jsondata[key] = v;
+        jsondata_[key] = v;
     }
     void set(const std::string& key, const char* v) {
-        jsondata[key] = v;
+        jsondata_[key] = v;
     }
     void set(const std::string& key, const std::string& v) {
-        jsondata[key] = v;
+        jsondata_[key] = v;
     }
 
     template <class T>
     void append(const std::string& key, const T& v) {
-        jsondata[key].append(v);
+        jsondata_[key].append(v);
     }
 
-    void setResult(int32_t c, const std::string& m);
+    void setResult(int32_t c, const std::string& message);
 
     std::string toJsonString() const;
 };
