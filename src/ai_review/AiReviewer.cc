@@ -167,9 +167,10 @@ std::string AiReviewer::getInstallationToken(const std::string& jwt, int64_t ins
 
 std::string AiReviewer::getPRDiff(const std::string& token, const std::string& owner
         , const std::string& repo, int prNumber) {
-    std::string url = std::string(kGithubApiBase) + "/repos/" + owner + "/" + repo + "/pulls/" + std::to_string(prNumber) + "/files";
+    // 用 context=50 参数获取更宽的 patch 上下文（默认只有 3 行）
+    std::string url = std::string(kGithubApiBase) + "/repos/" + owner + "/" + repo
+        + "/pulls/" + std::to_string(prNumber) + "/files?context=50";
 
-    // 用带有 diff 格式的 Accept header 获取 patch
     auto headers = std::map<std::string, std::string>{
         {"Authorization", "Bearer " + token},
         {"Accept", "application/vnd.github.v3.diff"},
@@ -178,17 +179,17 @@ std::string AiReviewer::getPRDiff(const std::string& token, const std::string& o
 
     auto ret = chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::GET, url, 30000, headers, "");
     if (!ret || ret->result != static_cast<int>(chen::http::HttpResult::Error::OK)) {
-        // 回退：用 JSON 格式获取，然后提取 patch 字段
+        // 回退：用 JSON 格式获取，然后提取 patch 字段（JSON 格式不支持 context 参数）
         WARN(logger) << "getPRDiff: diff format failed, falling back to JSON format, url=" << url;
+        // 去掉 ?context=50 参数
+        url = std::string(kGithubApiBase) + "/repos/" + owner + "/" + repo
+            + "/pulls/" + std::to_string(prNumber) + "/files";
         headers["Accept"] = "application/vnd.github+json";
-
         ret = chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::GET, url, 30000, headers, "");
-        
         if (!ret || ret->result != static_cast<int>(chen::http::HttpResult::Error::OK)) {
             ERROR(logger) << "getPRDiff: both diff and JSON format failed";
             return "";
         }
-        // 从 JSON 中提取每个文件的 patch
         std::string resp = ret->response->getBody();
         Json::Value files;
         if (!chen::JsonUtil::FromString(files, resp) || !files.isArray()) {
@@ -205,7 +206,7 @@ std::string AiReviewer::getPRDiff(const std::string& token, const std::string& o
             oss << "## " << filename << " (" << status
                 << ", +" << additions << "/-" << deletions << ")\n";
             if (!patch.empty()) {
-                oss << patch << "\n\n";
+                oss << "```diff\n" << patch << "\n```\n\n";
             } else {
                 oss << "(binary or empty file)\n\n";
             }
@@ -213,8 +214,9 @@ std::string AiReviewer::getPRDiff(const std::string& token, const std::string& o
         return oss.str();
     }
 
-    // diff 格式成功，直接返回
-    if (!ret->response) return "";
+    if (!ret->response) {
+        return "";
+    }
     return ret->response->getBody();
 }
 
