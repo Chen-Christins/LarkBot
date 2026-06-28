@@ -266,23 +266,32 @@ static void updatePRSummary(const std::string& token, const std::string& owner
         return;
     }
 
-    // 构造新的 PR 描述
-    std::string aiSection = "\n\n---\n## 🤖 AI 审查摘要\n" + summary + "\n";
+    // 构造新的 PR 描述：每次写之前清空旧的 AI 摘要段落
     std::string newBody;
+    std::string summarySection = "## 🤖 AI 审查摘要\n" + summary + "\n";
     std::string aiMarker = "## 🤖 AI 审查摘要";
     auto aiPos = currentBody.find(aiMarker);
     if (aiPos != std::string::npos) {
-        // 替换已有 AI 摘要段落
+        // 切掉旧摘要及其之前的所有分隔线/空白
         newBody = currentBody.substr(0, aiPos);
-        // 去掉尾部多余的空白
-        while (!newBody.empty() && (newBody.back() == ' ' || newBody.back() == '\n' || newBody.back() == '\r')) {
-            newBody.pop_back();
-        }
-        newBody += aiSection;
     } else {
-        // 追加
-        newBody = currentBody + aiSection;
+        newBody = currentBody;
     }
+    // 统一清理尾部空白和旧格式的 ---
+    while (!newBody.empty()) {
+        char c = newBody.back();
+        if (c == ' ' || c == '\n' || c == '\r') {
+            newBody.pop_back();
+        } else if (newBody.size() >= 3 && newBody.substr(newBody.size() - 3) == "---") {
+            newBody.resize(newBody.size() - 3);
+        } else {
+            break;
+        }
+    }
+    if (!newBody.empty()) {
+        newBody += "\n";
+    }
+    newBody += summarySection;
 
     Json::Value patchBody;
     patchBody["body"] = newBody;
