@@ -89,7 +89,7 @@ std::string AiReviewer::generateJWT(const std::string& appId, const std::string&
 /// GitHub API 基础地址
 static const char* kGithubApiBase = "https://api.github.com";
 
-/// 执行一次 GitHub API 请求，返回响应 body
+/// 执行一次 GitHub API 请求（带重试），返回响应 body
 static std::string githubApiCall(const std::string& method, const std::string& url
         , const std::string& token, const std::string& body, int64_t timeoutMs = 30000) {
     auto headers = std::map<std::string, std::string>{
@@ -108,21 +108,36 @@ static std::string githubApiCall(const std::string& method, const std::string& u
         httpMethod = chen::http::HttpMethod::PATCH;
     }
 
-    auto ret = chen::http::HttpConnection::DoRequest(httpMethod, url, timeoutMs, headers, body);
-    if (!ret) {
-        ERROR(logger) << "GitHub API request failed (null result): " << url;
-        return "";
+    constexpr int kMaxRetries = 3;
+    for (int attempt = 1; attempt <= kMaxRetries; ++attempt) {
+        auto ret = chen::http::HttpConnection::DoRequest(httpMethod, url, timeoutMs, headers, body);
+        if (!ret) {
+            WARN(logger) << "GitHub API request failed (null result), attempt " << attempt << "/" << kMaxRetries
+                << ", url=" << url;
+            continue;
+        }
+        if (ret->result == static_cast<int>(chen::http::HttpResult::Error::OK)) {
+            if (ret->response) {
+                return ret->response->getBody();
+            }
+            WARN(logger) << "GitHub API request no response, attempt " << attempt << "/" << kMaxRetries
+                << ", url=" << url;
+            continue;
+        }
+        // 只对临时性错误重试
+        if (ret->result != static_cast<int>(chen::http::HttpResult::Error::TIMEOUT)
+                && ret->result != static_cast<int>(chen::http::HttpResult::Error::CONNECT_FAIL)
+                && ret->result != static_cast<int>(chen::http::HttpResult::Error::SEND_CLOSE_BY_PEER)
+                && ret->result != static_cast<int>(chen::http::HttpResult::Error::SEND_SOCKET_ERROR)) {
+            ERROR(logger) << "GitHub API request failed, non-retryable, url=" << url
+                << " result=" << ret->result << " body=" << ret->toString();
+            return "";
+        }
+        WARN(logger) << "GitHub API request failed, attempt " << attempt << "/" << kMaxRetries
+            << " result=" << ret->result << " url=" << url;
     }
-    if (ret->result != static_cast<int>(chen::http::HttpResult::Error::OK)) {
-        ERROR(logger) << "GitHub API request error, url=" << url
-            << " result=" << ret->result << " body=" << ret->toString();
-        return "";
-    }
-    if (!ret->response) {
-        ERROR(logger) << "GitHub API request no response: " << url;
-        return "";
-    }
-    return ret->response->getBody();
+    ERROR(logger) << "GitHub API request exhausted all retries, url=" << url;
+    return "";
 }
 
 std::string AiReviewer::getInstallationToken(const std::string& jwt, int64_t installationId) {
@@ -374,10 +389,8 @@ std::string AiReviewer::buildReviewPrompt(const std::string& diff, const std::st
            << "- 问题描述与改进建议\n\n"
            << "### 评分\n"
            << "末尾给出综合评分：\n"
-           << "```\n"
            << "**综合评分: XX/100**\n"
            << "评分依据：...\n"
-           << "```\n"
            << "评分参考标准：\n"
            << "- 90-100: 代码质量优秀，仅少量改进建议\n"
            << "- 70-89: 代码基本良好，有一些小问题\n"
@@ -422,43 +435,68 @@ std::string AiReviewer::callAIReview(const std::string& diff, const std::string&
 
     DEBUG(logger) << "callAIReview: provider=" << providerType << " model=" << model << " endpoint=" << endpoint;
 
-    // 发起请求
-    auto ret = chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::POST, endpoint, 120000, headers, requestBody);
-    if (!ret || ret->result != static_cast<int>(chen::http::HttpResult::Error::OK)) {
-        std::string errInfo = ret ? ret->toString() : "null";
-        ERROR(logger) << "callAIReview: request failed, result="
-            << (ret ? std::to_string(ret->result) : "null") << " body=" << errInfo;
-        return "❌ AI 审查请求失败，请稍后重试。";
-    }
-
-    // 检查 HTTP 状态码
-    if (ret->response) {
-        int httpStatus = static_cast<int>(ret->response->getStatus());
-        if (httpStatus >= 400) {
-            ERROR(logger) << "callAIReview: HTTP " << httpStatus << " body=" << ret->response->getBody();
-            return "❌ AI 审查服务返回错误 (HTTP " + std::to_string(httpStatus) + ")";
+    // 发起请求（带重试）
+    constexpr int kAiMaxRetries = 3;
+    std::string reviewText;
+    for (int attempt = 1; attempt <= kAiMaxRetries; ++attempt) {
+        auto ret = chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::POST, endpoint, 120000, headers, requestBody);
+        if (!ret || ret->result != static_cast<int>(chen::http::HttpResult::Error::OK)) {
+            if (!ret || (ret->result != static_cast<int>(chen::http::HttpResult::Error::TIMEOUT)
+                    && ret->result != static_cast<int>(chen::http::HttpResult::Error::CONNECT_FAIL)
+                    && ret->result != static_cast<int>(chen::http::HttpResult::Error::SEND_CLOSE_BY_PEER)
+                    && ret->result != static_cast<int>(chen::http::HttpResult::Error::SEND_SOCKET_ERROR))) {
+                std::string errInfo = ret ? ret->toString() : "null";
+                ERROR(logger) << "callAIReview: request failed, non-retryable, result="
+                    << (ret ? std::to_string(ret->result) : "null") << " body=" << errInfo;
+                return "❌ AI 审查请求失败，请稍后重试。";
+            }
+            WARN(logger) << "callAIReview: request failed, attempt " << attempt << "/" << kAiMaxRetries
+                << " result=" << (ret ? std::to_string(ret->result) : "null");
+            continue;
         }
+
+        // 检查 HTTP 状态码
+        if (ret->response) {
+            int httpStatus = static_cast<int>(ret->response->getStatus());
+            if (httpStatus == 429 || httpStatus >= 500) {
+                // 429 限流 / 5xx 服务端错误 — 可重试
+                WARN(logger) << "callAIReview: HTTP " << httpStatus << ", attempt " << attempt << "/" << kAiMaxRetries;
+                continue;
+            }
+            if (httpStatus >= 400) {
+                ERROR(logger) << "callAIReview: HTTP " << httpStatus << " body=" << ret->response->getBody();
+                return "❌ AI 审查服务返回错误 (HTTP " + std::to_string(httpStatus) + ")";
+            }
+        }
+
+        // 解析响应
+        std::string respBody = ret->response ? ret->response->getBody() : "";
+        Json::Value parsed;
+        if (!chen::JsonUtil::FromString(parsed, respBody)) {
+            ERROR(logger) << "callAIReview: failed to parse JSON response";
+            return "❌ AI 审查响应解析失败。";
+        }
+
+        // 提取非流式完整内容
+        reviewText = aiProvider->extractNonStreamingContent(parsed);
+        if (reviewText.empty()) {
+            // 检查是否有错误信息
+            std::string errMsg = aiProvider->getError(parsed);
+            if (!errMsg.empty()) {
+                ERROR(logger) << "callAIReview: API error: " << errMsg;
+                return "❌ AI 审查失败: " + errMsg;
+            }
+            // 空内容（非错误）— 可重试
+            WARN(logger) << "callAIReview: empty review, attempt " << attempt << "/" << kAiMaxRetries;
+            continue;
+        }
+        // 成功拿到审查结果
+        break;
     }
 
-    // 解析响应
-    std::string respBody = ret->response ? ret->response->getBody() : "";
-    Json::Value parsed;
-    if (!chen::JsonUtil::FromString(parsed, respBody)) {
-        ERROR(logger) << "callAIReview: failed to parse JSON response";
-        return "❌ AI 审查响应解析失败。";
-    }
-
-    // 提取非流式完整内容
-    std::string reviewText = aiProvider->extractNonStreamingContent(parsed);
     if (reviewText.empty()) {
-        // 检查是否有错误信息
-        std::string errMsg = aiProvider->getError(parsed);
-        if (!errMsg.empty()) {
-            ERROR(logger) << "callAIReview: API error: " << errMsg;
-            return "❌ AI 审查失败: " + errMsg;
-        }
-        ERROR(logger) << "callAIReview: empty review returned, body=" << respBody;
-        return "❌ AI 审查返回了空结果。";
+        ERROR(logger) << "callAIReview: exhausted all retries";
+        return "❌ AI 审查请求多次重试后仍然失败。";
     }
 
     INFO(logger) << "callAIReview: received review (" << reviewText.size() << " chars)";
