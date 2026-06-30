@@ -2,7 +2,7 @@
 
 #include <chen/util/json_util.h>
 
-namespace blog {
+namespace bot {
 namespace ai {
 
 inline void SendSSEJson(chen::http::SSESession::ptr session, const std::string& type
@@ -70,4 +70,4 @@ void SSEStreamParser::processEvent() {
 }
 
 }  // namespace ai
-}  // namespace blog
+}  // namespace bot

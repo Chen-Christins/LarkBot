@@ -5,8 +5,7 @@
  * @date 2026-06-10
  * @copyright Apache 2.0
  */
-#ifndef __BLOG_AI_SSE_STREAM_PARSER_H__
-#define __BLOG_AI_SSE_STREAM_PARSER_H__
+#pragma once
 
 #include <memory>
 #include <string>
@@ -15,7 +14,7 @@
 
 #include "AIProvider.hpp"
 
-namespace blog {
+namespace bot {
 namespace ai {
 
 /// SSE 流式回调解析器，每收到一块 body 数据就逐行解析、提取文本、推送 SSE 事件
@@ -42,6 +41,4 @@ private:
 };
 
 }  // namespace ai
-}  // namespace blog
-
-#endif  // __BLOG_AI_SSE_STREAM_PARSER_H__
+}  // namespace bot

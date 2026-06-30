@@ -2,7 +2,7 @@
 
 #include <chen/util/json_util.h>
 
-namespace blog {
+namespace bot {
 namespace ai {
 
 std::string GLMProvider::buildRequest(const std::string& model, int32_t maxTokens, const std::string& systemPrompt
@@ -39,4 +39,4 @@ std::string GLMProvider::endpointSuffix() const {
 }
 
 }  // namespace ai
-}  // namespace blog
+}  // namespace bot

@@ -5,12 +5,11 @@
  * @date 2026-06-10
  * @copyright Apache 2.0
  */
-#ifndef __BLOG_AI_OPENAI_PROVIDER_H__
-#define __BLOG_AI_OPENAI_PROVIDER_H__
+#pragma once
 
 #include "AIProvider.hpp"
 
-namespace blog {
+namespace bot {
 namespace ai {
 
 class OpenAIProvider : public AIProvider {
@@ -36,6 +35,4 @@ public:
 };
 
 } // namespace ai
-} // namespace blog
-
-#endif // __BLOG_AI_OPENAI_PROVIDER_H__
+} // namespace bot
