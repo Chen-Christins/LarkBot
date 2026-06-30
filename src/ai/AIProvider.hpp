@@ -5,8 +5,7 @@
  * @date 2026-06-10
  * @copyright Apache 2.0
  */
-#ifndef __BLOG_AI_PROVIDER_H__
-#define __BLOG_AI_PROVIDER_H__
+#pragma once
 
 #include <json/json.h>
 
@@ -14,7 +13,7 @@
 #include <memory>
 #include <string>
 
-namespace blog {
+namespace bot {
 namespace ai {
 
 /**
@@ -95,6 +94,5 @@ public:
 AIProvider::ptr createProvider(const std::string& type);
 
 } // namespace ai
-} // namespace blog
+} // namespace bot
 
-#endif // __BLOG_AI_PROVIDER_H__

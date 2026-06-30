@@ -426,7 +426,7 @@ std::string AiReviewer::callAIReview(const std::string& diff, const std::string&
     }
 
     // 通过工厂创建对应的 AI 厂商适配器
-    auto aiProvider = blog::ai::createProvider(providerType);
+    auto aiProvider = ai::createProvider(providerType);
     if (!aiProvider) {
         ERROR(logger) << "callAIReview: failed to create provider for type=" << providerType;
         return "❌ AI 审查失败: 不支持的 AI 厂商";

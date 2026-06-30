@@ -4,7 +4,7 @@
 #include "ClaudeProvider.hpp"
 #include "GLMProvider.hpp"
 
-namespace blog {
+namespace bot {
 namespace ai {
 
 AIProvider::ptr createProvider(const std::string& type) {
@@ -18,4 +18,4 @@ AIProvider::ptr createProvider(const std::string& type) {
 }
 
 }  // namespace ai
-}  // namespace blog
+}  // namespace bot

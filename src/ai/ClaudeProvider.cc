@@ -4,7 +4,7 @@
 
 #include <map>
 
-namespace blog {
+namespace bot {
 namespace ai {
 
 std::string ClaudeProvider::buildRequest(const std::string& model, int32_t maxTokens, const std::string& systemPrompt
@@ -71,4 +71,4 @@ void ClaudeProvider::authHeaders(const std::string& apiKey, std::map<std::string
 }
 
 }  // namespace ai
-}  // namespace blog
+}  // namespace bot

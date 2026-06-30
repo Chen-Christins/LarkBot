@@ -9,7 +9,7 @@
 
 #include "OpenAIProvider.hpp"
 
-namespace blog {
+namespace bot {
 namespace ai {
 
 class GLMProvider : public OpenAIProvider {
@@ -23,4 +23,4 @@ public:
 };
 
 } // namespace ai
-} // namespace blog
+} // namespace bot

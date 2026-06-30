@@ -2,7 +2,7 @@
 
 #include <chen/util/json_util.h>
 
-namespace blog {
+namespace bot {
 namespace ai {
 
 std::string OpenAIProvider::buildRequest(const std::string& model, int32_t maxTokens, const std::string& systemPrompt
@@ -75,4 +75,4 @@ bool OpenAIProvider::isDoneMarker(const std::string& rawData) {
 }
 
 }  // namespace ai
-}  // namespace blog
+}  // namespace bot
