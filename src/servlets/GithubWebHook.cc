@@ -73,10 +73,23 @@ static void ForwardPRToBlog(const tagGithubPRInfo& info) {
 
             DEBUG(logger) << "ForwardPRToBlog: " << InfoToString(info);
 
-            if (ret == 0) {
-                INFO(logger) << "ForwardPRToBlog: PR #" << info.Number << " synced OK";
-            } else {
-                ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, ret=" << ret;
+            switch (ret) {
+            case 0:
+                INFO(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync success";
+                break;
+            case GITHUB_REPO_NOT_FOUND:
+                ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, repo not found";
+                break;
+            case GITHUB_DB_CONNECTION_FAILED:
+                ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, DB connection failed";
+                break;
+            case GITHUB_DB_OPERATION_FAILED:
+                ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, DB operation failed";
+                break;
+            case GITHUB_UNKNOWN_ERROR:
+            default:
+                ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, unknown error, ret=" << ret;
+                break;
             }
         } catch (std::exception& e) {
             ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number
@@ -98,11 +111,24 @@ static void ForwardPRReviewToBlog(const tagGithubPRReviewInfo& info) {
             int32_t ret = client->call<int32_t>("GithubPRReviewWebhook", info);
             
             DEBUG(logger) << "ForwardPRReviewToBlog: " << ReviewInfoToString(info);
-
-            if (ret == 0) {
-                INFO(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " synced OK";
-            } else {
-                ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, ret=" << ret;
+            
+            switch (ret) {
+            case 0:
+                INFO(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " review sync success";
+                break;
+            case GITHUB_PR_NOT_FOUND:
+                ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, repo not found";
+                break;
+            case GITHUB_DB_CONNECTION_FAILED:
+                ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, DB connection failed";
+                break;
+            case GITHUB_DB_OPERATION_FAILED:
+                ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, DB operation failed";
+                break;
+            case GITHUB_UNKNOWN_ERROR:
+            default:
+                ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, unknown error, ret=" << ret;
+                break;
             }
         } catch (std::exception& e) {
             ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber
