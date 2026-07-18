@@ -24,6 +24,7 @@ enum class GithubEvent {
     PULL_REQUEST_REVIEW,
     PULL_REQUEST_REVIEW_COMMENT,
     FORK,
+    SECURITY_ADVISORY,
     UNKNOWN
 };
 
@@ -97,6 +98,11 @@ private:
      * @brief 处理 fork 事件
      */
     bool handleForkEvent(const Json::Value& payload, Result::ptr result);
+
+    /**
+     * @brief 处理 security_advisory 事件
+     */
+    bool handleSecurityAdvisoryEvent(const Json::Value& payload, Result::ptr result);
 
 private:
     /**
