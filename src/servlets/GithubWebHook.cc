@@ -162,6 +162,8 @@ GithubEvent GithubWebHook::parseEvent(const std::string& event) {
         return GithubEvent::PULL_REQUEST_REVIEW_COMMENT;
     } else if (event == "fork") {
         return GithubEvent::FORK;
+    } else if (event == "security_advisory") {
+        return GithubEvent::SECURITY_ADVISORY;
     } else {
         WARN(logger) << "unsupported github event: " << event;
         return GithubEvent::UNKNOWN;
@@ -242,6 +244,12 @@ int32_t GithubWebHook::handle(chen::http::HttpRequest::ptr request
         case GithubEvent::FORK:
             if (!handleForkEvent(payload, result)) {
                 result->setResult(500, "failed to handle fork event");
+                break;
+            }
+            break;
+        case GithubEvent::SECURITY_ADVISORY:
+            if (!handleSecurityAdvisoryEvent(payload, result)) {
+                result->setResult(500, "failed to handle security_advisory event");
                 break;
             }
             break;
@@ -969,6 +977,90 @@ bool GithubWebHook::handleForkEvent(const Json::Value& payload, Result::ptr resu
 
     INFO(logger) << "fork event: " << senderName << " forked " << repoName
         << " -> " << forkeeName << " (total forks: " << forksCount << ")";
+
+    return true;
+}
+
+bool GithubWebHook::handleSecurityAdvisoryEvent(const Json::Value& payload, Result::ptr result) {
+    std::string action = payload.get("action", "").asString();
+    const Json::Value& advisory = payload["security_advisory"];
+    const Json::Value& repo = payload["repository"];
+
+    std::string repoName = repo.get("full_name", "").asString();
+    std::string ghsaId = advisory.get("ghsa_id", "").asString();
+    std::string cveId = advisory.get("cve_id", "").asString();
+    std::string summary = advisory.get("summary", "").asString();
+    std::string description = advisory.get("description", "").asString();
+    std::string severity = advisory.get("severity", "").asString();
+    std::string htmlUrl = advisory.get("html_url", "").asString();
+
+    LarkCardProtocol card;
+
+    // 根据 severity 选择颜色和 emoji
+    std::string headerTitle;
+    if (!repoName.empty()) {
+        headerTitle = "[" + repoName + "] Security Advisory: " + summary;
+    } else {
+        headerTitle = "Security Advisory: " + summary;
+    }
+    std::string templateColor;
+    std::string emoji;
+    if (severity == "critical") {
+        templateColor = "red";
+        emoji = "🔴";
+    } else if (severity == "high") {
+        templateColor = "orange";
+        emoji = "🟠";
+    } else if (severity == "moderate") {
+        templateColor = "yellow";
+        emoji = "🟡";
+    } else if (severity == "low") {
+        templateColor = "blue";
+        emoji = "🔵";
+    } else {
+        templateColor = "grey";
+        emoji = "⚪";
+    }
+
+    std::string actionText;
+    if (action == "published") {
+        actionText = "published";
+    } else if (action == "updated") {
+        actionText = "updated";
+    } else if (action == "withdrawn") {
+        actionText = "withdrawn";
+        templateColor = "grey";
+        emoji = "↩️";
+    } else {
+        actionText = action;
+    }
+
+    headerTitle += " " + emoji;
+    card.setHeader(headerTitle, "", templateColor);
+
+    std::ostringstream msg;
+    msg << "A security advisory was **" << actionText << "**\n"
+        << "**GHSA ID:** `" << ghsaId << "`\n";
+    if (!cveId.empty()) {
+        msg << "**CVE ID:** `" << cveId << "`\n";
+    }
+    msg << "**Severity:** " << severity << " " << emoji << "\n\n"
+        << description;
+    card.addElement(LarkCardProtocol::markdownElement(msg.str()));
+
+    if (!htmlUrl.empty()) {
+        card.addElement(LarkCardProtocol::buttonElement("View Advisory", htmlUrl));
+    }
+
+    card.build();
+
+    Json::Value cardJson;
+    card.getData(cardJson);
+
+    sendFeishuMessage(cardJson.toStyledString());
+
+    INFO(logger) << "security_advisory event: " << repoName
+        << " ghsa=" << ghsaId << " severity=" << severity << " action=" << action;
 
     return true;
 }
