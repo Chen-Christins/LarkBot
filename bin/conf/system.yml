@@ -89,6 +89,7 @@ github:
 
 # AI 代码审查配置（独立于 blog 的 ai 配置）
 ai_review:
+  enabled: false
   provider: "openai"                                           # AI 厂商: openai / claude
   api_key: ""
   api_url: "https://api.openai.com/v1"                         # 兼容 OpenAI API 的地址
