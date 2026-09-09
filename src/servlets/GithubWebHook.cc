@@ -23,6 +23,9 @@ static chen::ConfigVar<std::string>::ptr g_feishu_webhook_url =
 static chen::ConfigVar<std::string>::ptr g_blog_rpc_address =
     chen::Config::Lookup<std::string>("blog.rpc_address", "127.0.0.1:8092", "blog 后端 RPC 地址");
 
+static chen::ConfigVar<bool>::ptr g_ai_review_enabled =
+    chen::Config::Lookup<bool>("ai_review.enabled", false, "是否开启 AI Review");
+
 /// tagGithubPRInfo 转字符串（用于日志打印）
 static std::string InfoToString(const tagGithubPRInfo& info) {
     std::ostringstream oss;
@@ -476,8 +479,10 @@ bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::p
     INFO(logger) << "pull_request event: " << repoName << " #" << number
         << " action=" << action << " " << headRef << "->" << baseRef;
 
-    // 异步触发 AI 代码审查
-    AiReviewer::reviewPullRequest(payload);
+    // 如果开启了，则异步触发 AI 代码审查
+    if (g_ai_review_enabled->getValue()) {
+        AiReviewer::reviewPullRequest(payload);
+    }
 
     // 转发到 blog 后端
     {
