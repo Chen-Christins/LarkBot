@@ -2,7 +2,6 @@
 
 #include <chen/log/log.h>
 #include <chen/application.h>
-#include <chen/http/http_server.h>
 
 #include "./servlets/GithubWebHook.hpp"
 
@@ -10,9 +9,7 @@ namespace bot {
 
 static chen::Logger::ptr logger = LOG_NAME("bot");
 
-BotModule::BotModule() 
-    : chen::Module("BotModule", "1.0.0", "") {
-}
+BotModule::BotModule() : Module("BotModule", "1.0.0", "") {}
 
 void BotModule::onBeforeArgsParse(int argc, char** argv) {
     INFO(logger) << "onBeforeArgsParse";
@@ -35,8 +32,10 @@ bool BotModule::onUnload() {
 bool BotModule::onServerReady() {
     INFO(logger) << "onServerReady";
 
-    std::vector<chen::TcpServer::ptr> servers;
-    if (chen::Application::GetInstance()->getServer("http", servers)) {
+    std::vector<chen::http::HttpServer::ptr> servers;
+    getAllHttpServer(servers);
+
+    if (!servers.empty()) {
         registerServlets(servers);
     } else {
         ERROR(logger) << "http_server not open";
@@ -51,13 +50,13 @@ bool BotModule::onServerUp() {
     return true;
 }
 
-bool BotModule::onDrain() {
-    INFO(logger) << "onDrain";
+bool BotModule::onActivate() {
+    INFO(logger) << "onActivate";
     return true;
 }
 
-bool BotModule::onGracefulUnload() {
-    INFO(logger) << "onGracefulUnload";
+bool BotModule::onDeactivate() {
+    INFO(logger) << "onDeactivate";
     return true;
 }
 
@@ -69,11 +68,10 @@ uint64_t BotModule::getTickIntervalMs() {
     return 0;
 }
 
-void BotModule::registerServlets(std::vector<chen::TcpServer::ptr>& servers) {
+void BotModule::registerServlets(std::vector<chen::http::HttpServer::ptr>& servers) {
     INFO(logger) << "registerServlets";
 
-	for (auto& i : servers) {
-        auto hs = std::dynamic_pointer_cast<chen::http::HttpServer>(i);
+	for (auto& hs : servers) {
         auto dp = hs->getServletDispatch();
 
 #define XX(clazz) chen::http::Servlet::ptr(new clazz)
