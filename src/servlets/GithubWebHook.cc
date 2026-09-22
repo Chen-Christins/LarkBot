@@ -72,9 +72,11 @@ static void ForwardPRToBlog(const tagGithubPRInfo& info) {
     chen::Scheduler::GetThis()->schedule([addr, info]() {
         try {
             auto client = chen::rpc::RpcClientPoolMgr::GetInstance()->getClient(addr);
-            int32_t ret = client->call<int32_t>("GithubPRWebhook", info);
+            ASSERT_RET(client);
 
-            DEBUG(logger) << "ForwardPRToBlog: " << InfoToString(info);
+            int32_t ret = client->callByCmd<int32_t>(SS_CMD_GET_GITHUB_PR_INFO, info);
+
+            TRACE(logger) << "ForwardPRToBlog: " << InfoToString(info);
 
             switch (ret) {
             case 0:
@@ -111,9 +113,11 @@ static void ForwardPRReviewToBlog(const tagGithubPRReviewInfo& info) {
     chen::Scheduler::GetThis()->schedule([addr, info]() {
         try {
             auto client = chen::rpc::RpcClientPoolMgr::GetInstance()->getClient(addr);
-            int32_t ret = client->call<int32_t>("GithubPRReviewWebhook", info);
+            ASSERT_RET(client);
+
+            int32_t ret = client->callByCmd<int32_t>(SS_CMD_GET_GITHUB_PR_REVIEW_INFO, info);
             
-            DEBUG(logger) << "ForwardPRReviewToBlog: " << ReviewInfoToString(info);
+            TRACE(logger) << "ForwardPRReviewToBlog: " << ReviewInfoToString(info);
             
             switch (ret) {
             case 0:
