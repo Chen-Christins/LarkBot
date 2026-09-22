@@ -11,3 +11,4 @@ protocol/include
 orm
 tools
 *upload*
+/bin/server
