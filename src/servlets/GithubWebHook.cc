@@ -74,7 +74,7 @@ static void ForwardPRToBlog(const tagGithubPRInfo& info) {
             auto client = chen::rpc::RpcClientPoolMgr::GetInstance()->getClient(addr);
             ASSERT_RET(client);
 
-            int32_t ret = client->callByCmd<int32_t>(SS_CMD_GET_GITHUB_PR_INFO, info);
+            int32_t ret = client->call<int32_t>(SS_CMD_GET_GITHUB_PR_INFO, info);
 
             TRACE(logger) << "ForwardPRToBlog: " << InfoToString(info);
 
@@ -115,7 +115,7 @@ static void ForwardPRReviewToBlog(const tagGithubPRReviewInfo& info) {
             auto client = chen::rpc::RpcClientPoolMgr::GetInstance()->getClient(addr);
             ASSERT_RET(client);
 
-            int32_t ret = client->callByCmd<int32_t>(SS_CMD_GET_GITHUB_PR_REVIEW_INFO, info);
+            int32_t ret = client->call<int32_t>(SS_CMD_GET_GITHUB_PR_REVIEW_INFO, info);
             
             TRACE(logger) << "ForwardPRReviewToBlog: " << ReviewInfoToString(info);
             
