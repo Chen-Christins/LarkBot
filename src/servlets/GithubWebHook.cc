@@ -83,7 +83,10 @@ static void ForwardPRToBlog(const tagGithubPRInfo& info) {
                 INFO(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync success";
                 break;
             case GITHUB_REPO_NOT_FOUND:
-                ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, repo not found";
+                WARN(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, repo not found";
+                break;
+            case GITHUB_PR_NOT_FOUND:
+                ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.Number << " sync failed, pr not found";
                 break;
             case GITHUB_DB_CONNECTION_FAILED:
                 ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, DB connection failed";
@@ -123,8 +126,11 @@ static void ForwardPRReviewToBlog(const tagGithubPRReviewInfo& info) {
             case 0:
                 INFO(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " review sync success";
                 break;
+            case GITHUB_REPO_NOT_FOUND:
+                WARN(logger) << "ForwardPRToBlog: PR #" << info.PRNumber << " sync failed, repo not found";
+                break;
             case GITHUB_PR_NOT_FOUND:
-                ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, repo not found";
+                ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, pr not found";
                 break;
             case GITHUB_DB_CONNECTION_FAILED:
                 ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, DB connection failed";
