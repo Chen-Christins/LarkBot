@@ -85,6 +85,4 @@ jobs:
         run: |
           SSH_OPTS=(-p "${SSH_PORT}" -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new)
           ssh "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}" \
-            "DEPLOY_PATH='${DEPLOY_PATH}' CONFIG_DIR='${CONFIG_DIR}' bash /tmp/larkbot-deploy.sh --mode '${{ inputs.mode }}' --artifact /tmp/larkbot-pkg.tar.gz"
-          ssh "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}" \
-            "rm -f /tmp/larkbot-deploy.sh /tmp/larkbot-pkg.tar.gz" || true
+            "DEPLOY_PATH='${DEPLOY_PATH}' CONFIG_DIR='${CONFIG_DIR}' bash /tmp/larkbot-deploy.sh --mode '${{ inputs.mode }}' --artifact /tmp/larkbot-pkg.tar.gz; rc=\$?; rm -f /tmp/larkbot-deploy.sh /tmp/larkbot-pkg.tar.gz; exit \$rc"
