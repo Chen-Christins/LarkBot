@@ -1,0 +1,12 @@
+{
+  "chen-sdk": {
+    "repo": "Chen-Christins/chen",
+    "version": "1.5.5",
+    "arch": "auto"
+  },
+  "thirdparty": {
+    "repo": "Chen-Christins/chen",
+    "tag": "v1.0.0",
+    "asset": "deps-{arch}.zip"
+  }
+}

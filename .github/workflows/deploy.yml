@@ -1,0 +1,90 @@
+name: Deploy
+
+# 手动触发（可选择分支或 tag 运行），三种模式：
+#   cold : 停服 → 清空运行目录 → 解压产物 → 用 CONFIG_DIR 覆盖 conf/ → ./bot_server -d 冷启动
+#   hot  : 解压产物 → 拷贝 module/*.so 到运行目录 → ./bot_server -s reload 热启动
+#   stop : 进入运行目录执行 ./bot_server -s stop 停服
+#
+# 产物来源按所选 ref 自动判定：
+#   - tag  : 取该 tag 的 GitHub Release 资产 *amd64*.tar.gz
+#   - 分支 : 取该分支最近一次成功的 "Build & Package" 的 Actions artifact larkbot-amd64
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 部署模式
+        type: choice
+        required: true
+        default: cold
+        options: [cold, hot, stop]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve + download amd64 package
+        if: inputs.mode != 'stop'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p pkg
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "==> 产物来源: Release ${GITHUB_REF_NAME}"
+            gh release download "${GITHUB_REF_NAME}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --pattern '*amd64*.tar.gz' --dir pkg --clobber
+          else
+            echo "==> 产物来源: 分支 ${GITHUB_REF_NAME} 最近一次成功的 Build & Package"
+            run_id="$(gh run list --repo "${GITHUB_REPOSITORY}" \
+              --workflow "Build & Package" --branch "${GITHUB_REF_NAME}" \
+              --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+            if [ -z "${run_id}" ]; then
+              echo "错误: 分支 ${GITHUB_REF_NAME} 没有成功的 Build & Package 运行，请先触发构建" >&2
+              exit 1
+            fi
+            gh run download "${run_id}" --repo "${GITHUB_REPOSITORY}" \
+              -n larkbot-amd64 -D pkg
+          fi
+          ls -l pkg
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${SSH_PORT}" -H "${SSH_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Upload deploy script (+ package) to server
+        run: |
+          SCP_OPTS=(-P "${SSH_PORT}" -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new)
+          scp "${SCP_OPTS[@]}" scripts/deploy.sh "${SSH_USER}@${SSH_HOST}:/tmp/larkbot-deploy.sh"
+          if [ "${{ inputs.mode }}" != "stop" ]; then
+            pkg="$(find pkg -name '*amd64*.tar.gz' | head -1)"
+            test -n "${pkg}"
+            scp "${SCP_OPTS[@]}" "${pkg}" "${SSH_USER}@${SSH_HOST}:/tmp/larkbot-pkg.tar.gz"
+          fi
+
+      - name: Run deploy on server
+        env:
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          CONFIG_DIR: ${{ vars.CONFIG_DIR }}
+        run: |
+          SSH_OPTS=(-p "${SSH_PORT}" -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new)
+          ssh "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}" \
+            "DEPLOY_PATH='${DEPLOY_PATH}' CONFIG_DIR='${CONFIG_DIR}' bash /tmp/larkbot-deploy.sh --mode '${{ inputs.mode }}' --artifact /tmp/larkbot-pkg.tar.gz"
+          ssh "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}" \
+            "rm -f /tmp/larkbot-deploy.sh /tmp/larkbot-pkg.tar.gz" || true

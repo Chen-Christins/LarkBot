@@ -12,3 +12,10 @@ orm
 tools
 *upload*
 /bin/server
+/deps
+/.deps-cache
+/dependencies.local.json
+/dist
+/larkbot-*.tar.gz
+__pycache__/
+*.pyc

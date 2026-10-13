@@ -1,0 +1,105 @@
+name: Build & Package
+
+# 触发：
+#   - 手动 workflow_dispatch（出 Actions artifact）
+#   - 推 build/* 分支
+#   - 打 tag v* → 额外发布到 GitHub Release
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ci/*
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-24.04,     arch: amd64 }
+          - { runner: ubuntu-24.04-arm, arch: arm64 }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            ninja-build \
+            rsync \
+            python3 \
+            libboost-context-dev \
+            cmake \
+            libsqlite3-dev \
+            libssl-dev \
+            libevent-dev \
+            libmysqlclient-dev \
+            libnghttp2-dev \
+            git \
+            wget \
+            unzip \
+            zip
+
+      - name: Fetch chen-sdk + thirdparty deps
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 deps.py sync
+
+      - name: Apply SDK (bin / tools / protocol / resources)
+        run: make apply
+
+      - name: Generate protocol headers
+        run: make proto
+
+      - name: Build
+        run: make -j"$(nproc)"
+
+      - name: Package
+        run: ./collect.sh
+
+      - name: Rename package (tag + arch)
+        run: |
+          tag="${{ github.ref_type == 'tag' && github.ref_name || 'latest' }}"
+          mv larkbot-*.tar.gz "larkbot-${tag}-${{ matrix.arch }}.tar.gz"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: larkbot-${{ matrix.arch }}
+          path: larkbot-*.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: release
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Publish to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1 \
+            || gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
+                 --title "${GITHUB_REF_NAME}" --notes "release ${GITHUB_REF_NAME}"
+          gh release upload "${GITHUB_REF_NAME}" artifacts/*.tar.gz \
+            --repo "${GITHUB_REPOSITORY}" --clobber
