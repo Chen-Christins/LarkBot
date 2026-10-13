@@ -462,7 +462,7 @@ def extract_zip_restore(zf, dest):
 
 def ensure_bin_executable(prefix):
     root = Path(prefix)
-    for sub in ("bin", "tools/bin"):
+    for sub in ("bin", "tools/bin", "tools/scripts"):
         bin_dir = root / sub
         if not bin_dir.is_dir():
             continue

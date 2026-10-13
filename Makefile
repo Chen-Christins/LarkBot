@@ -65,7 +65,7 @@ apply:
 proto:
 	@set -e; \
 	CHEN_SDK_LIB="$$(for d in chen-sdk-*/lib; do [ -d "$$d" ] && printf '%s' "$$d" && break; done)"; \
-	LD_LIBRARY_PATH="$$CHEN_SDK_LIB:$$LD_LIBRARY_PATH" $(MAKE) -C protocol
+	LD_LIBRARY_PATH="$$CHEN_SDK_LIB:$$LD_LIBRARY_PATH" $(MAKE) -C protocol convert_only
 
 collect:
 	@./collect.sh $(if $(ENV),$(ENV),prod)
