@@ -1,9 +1,9 @@
 name: Deploy
 
 # 手动触发（可选择分支或 tag 运行），三种模式：
-#   cold : 停服 → 清空运行目录 → 解压产物 → 用 CONFIG_DIR 覆盖 conf/ → ./bot_server -d 冷启动
-#   hot  : 解压产物 → 拷贝 module/*.so 到运行目录 → ./bot_server -s reload 热启动
-#   stop : 进入运行目录执行 ./bot_server -s stop 停服
+#   cold : 停服 → 清空运行目录 → 解压产物 → 用 CONFIG_DIR 覆盖 conf/ → ./server -d 冷启动
+#   hot  : 解压产物 → 拷贝 module/*.so 到运行目录 → ./server -s reload 热启动
+#   stop : 进入运行目录执行 ./server -s stop 停服
 #
 # 产物来源按所选 ref 自动判定：
 #   - tag  : 取该 tag 的 GitHub Release 资产 *amd64*.tar.gz

@@ -5,8 +5,13 @@
 namespace bot {
 namespace ai {
 
-std::string OpenAIProvider::buildRequest(const std::string& model, int32_t maxTokens, const std::string& systemPrompt
-        , const std::string& prompt, bool stream) {
+std::string OpenAIProvider::buildRequest(
+    const std::string& model,
+    int32_t maxTokens,
+    const std::string& systemPrompt,
+    const std::string& prompt,
+    bool stream)
+{
     Json::Value body;
     body["model"] = model;
     body["max_tokens"] = maxTokens;
@@ -29,11 +34,13 @@ std::string OpenAIProvider::buildRequest(const std::string& model, int32_t maxTo
     return chen::JsonUtil::ToString(body);
 }
 
-std::string OpenAIProvider::endpointSuffix() const {
+std::string OpenAIProvider::endpointSuffix() const
+{
     return "/v1/chat/completions";
 }
 
-std::string OpenAIProvider::extractContent(const Json::Value& parsed) {
+std::string OpenAIProvider::extractContent(const Json::Value& parsed)
+{
     auto& choices = parsed["choices"];
     if (choices.isArray() && choices.size() > 0) {
         return choices[0]["delta"]["content"].asString();
@@ -41,7 +48,8 @@ std::string OpenAIProvider::extractContent(const Json::Value& parsed) {
     return "";
 }
 
-bool OpenAIProvider::isTerminal(const Json::Value& parsed) {
+bool OpenAIProvider::isTerminal(const Json::Value& parsed)
+{
     auto& choices = parsed["choices"];
     if (choices.isArray() && choices.size() > 0) {
         auto finish = choices[0]["finish_reason"].asString();
@@ -50,11 +58,13 @@ bool OpenAIProvider::isTerminal(const Json::Value& parsed) {
     return false;
 }
 
-std::string OpenAIProvider::getError(const Json::Value& /*parsed*/) {
+std::string OpenAIProvider::getError(const Json::Value& /*parsed*/)
+{
     return "";
 }
 
-std::string OpenAIProvider::extractNonStreamingContent(const Json::Value& parsed) {
+std::string OpenAIProvider::extractNonStreamingContent(const Json::Value& parsed)
+{
     auto& choices = parsed["choices"];
     if (choices.isArray() && choices.size() > 0) {
         return choices[0]["message"]["content"].asString();
@@ -66,13 +76,15 @@ std::string OpenAIProvider::extractNonStreamingContent(const Json::Value& parsed
     return "";
 }
 
-void OpenAIProvider::authHeaders(const std::string& apiKey, std::map<std::string, std::string>& outHeaders) {
+void OpenAIProvider::authHeaders(const std::string& apiKey, std::map<std::string, std::string>& outHeaders)
+{
     outHeaders["Authorization"] = "Bearer " + apiKey;
 }
 
-bool OpenAIProvider::isDoneMarker(const std::string& rawData) {
+bool OpenAIProvider::isDoneMarker(const std::string& rawData)
+{
     return rawData == "[DONE]";
 }
 
-}  // namespace ai
-}  // namespace bot
+} // namespace ai
+} // namespace bot

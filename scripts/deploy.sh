@@ -6,17 +6,17 @@
 #   DEPLOY_PATH=/home/web/apps/larkbot CONFIG_DIR=/home/web/apps/larkbot_conf \
 #     ./deploy.sh --mode cold|hot|stop --artifact /tmp/larkbot-v1.2.3-amd64.tar.gz
 #
-#   cold : 停服 → 清空运行目录 → 解压产物 → 用 CONFIG_DIR 覆盖 conf/ → ./bot_server -d 启动
-#   hot  : 解压产物到临时目录 → 拷贝 module/*.so 到运行目录 → ./bot_server -s reload
-#   stop : 仅执行 ./bot_server -s stop
+#   cold : 停服 → 清空运行目录 → 解压产物 → 用 CONFIG_DIR 覆盖 conf/ → ./server -d 启动
+#   hot  : 解压产物到临时目录 → 拷贝 module/*.so 到运行目录 → ./server -s reload
+#   stop : 仅执行 ./server -s stop
 #
 set -euo pipefail
 
 MODE=""
 ARTIFACT=""
 
-# 可按需覆盖：服务器二进制名 / pid 文件名（实际以上面的 conf/system.yml 为准）
-SERVER_BIN="${SERVER_BIN:-bot_server}"
+# 使用 SDK 提供的 server 程序（产物根目录下的 server）
+SERVER_BIN="${SERVER_BIN:-server}"
 PID_NAME="${PID_NAME:-bot.pid}"
 
 usage() { sed -n '2,13p' "$0"; }
@@ -38,15 +38,20 @@ export LD_LIBRARY_PATH="$DEPLOY_PATH/lib:${LD_LIBRARY_PATH:-}"
 log() { echo "[deploy] $*"; }
 die() { echo "[deploy][ERROR] $*" >&2; exit 1; }
 
-# 运行时真实 pid 文件：读 conf/system.yml 的 server.work_path + server.pid_file
+# 运行时真实 pid 文件：读 conf/LarkBot.yml（优先）或 conf/system.yml 的 server.work_path + server.pid_file
 pid_file_path() {
-    local cfg="$DEPLOY_PATH/conf/system.yml" wp="" pf=""
-    if [ -f "$cfg" ]; then
+    local cfg="" wp="" pf=""
+    for cfg in "$DEPLOY_PATH/conf/LarkBot.yml" "$DEPLOY_PATH/conf/system.yml"; do
+        [ -f "$cfg" ] || continue
         wp="$(awk '/^[[:space:]]*work_path:/{print $2; exit}' "$cfg")"
         pf="$(awk '/^[[:space:]]*pid_file:/{print $2; exit}' "$cfg")"
         wp="${wp%\"}"; wp="${wp#\"}"; wp="${wp%\'}"; wp="${wp#\'}"
         pf="${pf%\"}"; pf="${pf#\"}"; pf="${pf%\'}"; pf="${pf#\'}"
-    fi
+        if [ -n "$wp" ] && [ -n "$pf" ]; then
+            break
+        fi
+        wp=""; pf=""
+    done
     if [ -n "$wp" ] && [ -n "$pf" ]; then
         printf '%s/%s' "${wp%/}" "$pf"
     else
@@ -55,9 +60,11 @@ pid_file_path() {
 }
 
 # 用于 -s 命令的 server 二进制（优先 SERVER_BIN，其次同目录下的 server）
+# bot_server 仅用于兼容旧部署的停服迁移，新部署统一使用 server
 server_bin() {
     if   [ -x "$DEPLOY_PATH/$SERVER_BIN" ]; then printf '%s' "$DEPLOY_PATH/$SERVER_BIN"
     elif [ -x "$DEPLOY_PATH/server" ];      then printf '%s' "$DEPLOY_PATH/server"
+    elif [ -x "$DEPLOY_PATH/bot_server" ];  then printf '%s' "$DEPLOY_PATH/bot_server"
     else printf '%s' "$DEPLOY_PATH/$SERVER_BIN"; fi
 }
 
@@ -117,9 +124,9 @@ case "$MODE" in
         [ -d "$CONFIG_DIR" ] || die "配置目录不存在: $CONFIG_DIR"
         # 安全：避免误清空其他服务的运行目录
         if [ -e "$DEPLOY_PATH" ] && [ -n "$(ls -A "$DEPLOY_PATH" 2>/dev/null || true)" ] \
-           && [ ! -e "$DEPLOY_PATH/$SERVER_BIN" ] && [ ! -e "$DEPLOY_PATH/server" ] \
+           && [ ! -e "$DEPLOY_PATH/$SERVER_BIN" ] && [ ! -e "$DEPLOY_PATH/bot_server" ] \
            && [ "${FORCE_WIPE:-0}" != "1" ]; then
-            die "拒绝清空 $DEPLOY_PATH：目录非空且不含 $SERVER_BIN/server（疑似其他服务目录）。确认无误请设置 FORCE_WIPE=1 重试"
+            die "拒绝清空 $DEPLOY_PATH：目录非空且不含 $SERVER_BIN/bot_server（疑似其他服务目录）。确认无误请设置 FORCE_WIPE=1 重试"
         fi
         stop_service
         log "清空运行目录: $DEPLOY_PATH"
@@ -136,6 +143,7 @@ case "$MODE" in
     hot)
         require_artifact
         is_running || die "服务未运行，无法热启动（请改用 cold）。pid 文件: $(pid_file_path)"
+        [ -x "$DEPLOY_PATH/$SERVER_BIN" ] || die "运行目录缺少 $SERVER_BIN，请先用 cold 完成到 SDK server 的迁移"
         tmp="$(mktemp -d)"
         trap 'rm -rf "$tmp"' EXIT
         log "解压产物到临时目录: $tmp"

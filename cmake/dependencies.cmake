@@ -6,12 +6,14 @@ if (CHEN_SDK_DIRS)
     list(GET CHEN_SDK_DIRS 0 CHEN_SDK_DIR)
     message(STATUS "Using CHEN_SDK_DIR=${CHEN_SDK_DIR}")
 else()
-    message(FATAL_ERROR "chen-sdk-* not found under ${PROJECT_SOURCE_DIR}. Run ./deps.py sync")
+    message(FATAL_ERROR "chen-sdk-* not found under ${PROJECT_SOURCE_DIR}. Please fetch chen-sdk.")
 endif()
 
 include_directories(${CHEN_SDK_DIR}/include)
 
-# 三方依赖（由 deps.py sync 下载到 deps/：头文件 + 静态库），用于编译 chen 头文件
+# 三方依赖（由 deps.py sync / thirdparty 下载到 deps/：头文件 + 静态库）
+# 仅用于编译 chen 头文件（protobuf/yaml-cpp/tinyxml2/jsoncpp/hiredis-vip），不静态链接进模块，
+# 运行时符号由预编译 libchen.so 提供，避免重复符号。
 set(THIRDPARTY_DEPS_DIR ${PROJECT_SOURCE_DIR}/deps)
 if (EXISTS ${THIRDPARTY_DEPS_DIR}/include)
     include_directories(${THIRDPARTY_DEPS_DIR}/include)
@@ -25,19 +27,6 @@ else()
     message(WARNING "deps/ 未就绪，运行 ./deps.py sync 下载三方依赖（头文件/静态库）")
 endif()
 
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG TRUE)
 add_subdirectory(${CHEN_SDK_DIR})
-
-# 修正 SDK 导出的依赖：SDK 生成的 CMakeLists 硬编码了 /usr/local/lib/libyaml-cpp.so，
-# 该路径在 CI/部署环境并不存在；移除它并改用 deps/ 里的 yaml-cpp。
-if (DEFINED CHEN_SDK_DEP_LIBS)
-    list(REMOVE_ITEM CHEN_SDK_DEP_LIBS "/usr/local/lib/libyaml-cpp.so" "/usr/local/lib/libyaml-cpp.a")
-    if (NOT CHEN_SDK_DEP_LIBS MATCHES "yaml-cpp")
-        find_library(YAML_CPP_LIB yaml-cpp PATHS ${THIRDPARTY_DEPS_DIR}/lib NO_DEFAULT_PATH)
-        if (YAML_CPP_LIB)
-            list(APPEND CHEN_SDK_DEP_LIBS ${YAML_CPP_LIB})
-            message(STATUS "Using YAML_CPP_LIB=${YAML_CPP_LIB}")
-        else()
-            message(WARNING "未找到 yaml-cpp（${THIRDPARTY_DEPS_DIR}/lib）")
-        endif()
-    endif()
-endif()
+unset(CMAKE_FIND_PACKAGE_PREFER_CONFIG)

@@ -5,10 +5,12 @@
 namespace bot {
 
 LarkCardProtocol::LarkCardProtocol()
-    : body_elements_(Json::arrayValue) {
+    : body_elements_(Json::arrayValue)
+{
 }
 
-void LarkCardProtocol::build() {
+void LarkCardProtocol::build()
+{
     data_.clear();
 
     Protocol::build();
@@ -33,47 +35,57 @@ void LarkCardProtocol::build() {
     data_["card"]["body"]["elements"] = body_elements_;
 }
 
-std::string LarkCardProtocol::toString() const {
+std::string LarkCardProtocol::toString() const
+{
     return chen::JsonUtil::ToString(data_);
 }
 
-void LarkCardProtocol::getData(Json::Value& value) const {
+void LarkCardProtocol::getData(Json::Value& value) const
+{
     if (data_.empty()) {
         const_cast<LarkCardProtocol*>(this)->build();
     }
     value = data_;
 }
 
-void LarkCardProtocol::setHeader(const std::string& title, const std::string& subtitle
-        , const std::string& templateColor, const std::string& padding) {
+void LarkCardProtocol::setHeader(const std::string& title, const std::string& subtitle, const std::string& templateColor, const std::string& padding)
+{
     header_title_ = title;
     header_subtitle_ = subtitle;
     header_template_ = templateColor;
     header_padding_ = padding;
 }
 
-void LarkCardProtocol::setConfig(bool updateMulti) {
+void LarkCardProtocol::setConfig(bool updateMulti)
+{
     config_update_multi_ = updateMulti;
 }
 
-void LarkCardProtocol::setBodyLayout(const std::string& direction, const std::string& padding) {
+void LarkCardProtocol::setBodyLayout(const std::string& direction, const std::string& padding)
+{
     body_direction_ = direction;
     body_padding_ = padding;
 }
 
-void LarkCardProtocol::addElement(const Json::Value& element) {
+void LarkCardProtocol::addElement(const Json::Value& element)
+{
     body_elements_.append(element);
 }
 
-Json::Value LarkCardProtocol::plainText(const std::string& content) {
+Json::Value LarkCardProtocol::plainText(const std::string& content)
+{
     Json::Value elem;
     elem["tag"] = "plain_text";
     elem["content"] = content;
     return elem;
 }
 
-Json::Value LarkCardProtocol::markdownElement(const std::string& content, const std::string& textAlign
-        , const std::string& textSize, const std::string& margin) {
+Json::Value LarkCardProtocol::markdownElement(
+    const std::string& content,
+    const std::string& textAlign,
+    const std::string& textSize,
+    const std::string& margin)
+{
     Json::Value elem;
     elem["tag"] = "markdown";
     elem["content"] = content;
@@ -83,8 +95,14 @@ Json::Value LarkCardProtocol::markdownElement(const std::string& content, const 
     return elem;
 }
 
-Json::Value LarkCardProtocol::buttonElement(const std::string& text,const std::string& url
-        , const std::string& type, const std::string& width, const std::string& size, const std::string& margin) {
+Json::Value LarkCardProtocol::buttonElement(
+    const std::string& text,
+    const std::string& url,
+    const std::string& type,
+    const std::string& width,
+    const std::string& size,
+    const std::string& margin)
+{
     Json::Value elem;
     elem["tag"] = "button";
     elem["text"]["tag"] = "plain_text";

@@ -32,27 +32,28 @@ class GithubWebHook : public LarkBotServlet {
 public:
     GithubWebHook();
 
-    virtual int32_t handle(chen::http::HttpRequest::ptr request, 
-                           chen::http::HttpResponse::ptr response, 
-                           chen::http::HttpSession::ptr session,
-                           Result::ptr result) override;
+    virtual int32_t handle(
+        chen::http::HttpRequest::ptr request,
+        chen::http::HttpResponse::ptr response,
+        chen::http::HttpSession::ptr session,
+        Result::ptr result) override;
 
     static GithubEvent parseEvent(const std::string& event);
 
 private:
     /**
      * @brief 处理 push 事件
-     * @param payload 
-     * @param result 
-     * @return bool 
+     * @param payload
+     * @param result
+     * @return bool
      */
     bool handlePushEvent(const Json::Value& payload, Result::ptr result);
 
     /**
      * @brief 处理 create 事件
-     * @param payload 
-     * @param result 
-     * @return bool 
+     * @param payload
+     * @param result
+     * @return bool
      */
     bool handleCreateEvent(const Json::Value& payload, Result::ptr result);
 
@@ -103,13 +104,6 @@ private:
      * @brief 处理 security_advisory 事件
      */
     bool handleSecurityAdvisoryEvent(const Json::Value& payload, Result::ptr result);
-
-private:
-    /**
-     * @brief 发送飞书消息
-     * @param content 消息内容（JSON 格式）
-     */
-    void sendFeishuMessage(const std::string& content);
 };
 
 } // namespace bot

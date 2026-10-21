@@ -7,8 +7,13 @@
 namespace bot {
 namespace ai {
 
-std::string ClaudeProvider::buildRequest(const std::string& model, int32_t maxTokens, const std::string& systemPrompt
-        , const std::string& prompt, bool stream) {
+std::string ClaudeProvider::buildRequest(
+    const std::string& model,
+    int32_t maxTokens,
+    const std::string& systemPrompt,
+    const std::string& prompt,
+    bool stream)
+{
     Json::Value body;
     body["model"] = model;
     body["max_tokens"] = maxTokens;
@@ -27,11 +32,13 @@ std::string ClaudeProvider::buildRequest(const std::string& model, int32_t maxTo
     return chen::JsonUtil::ToString(body);
 }
 
-std::string ClaudeProvider::endpointSuffix() const {
+std::string ClaudeProvider::endpointSuffix() const
+{
     return "/v1/messages";
 }
 
-std::string ClaudeProvider::extractContent(const Json::Value& parsed) {
+std::string ClaudeProvider::extractContent(const Json::Value& parsed)
+{
     std::string evType = parsed["type"].asString();
     if (evType == "content_block_delta") {
         auto deltaType = parsed["delta"]["type"].asString();
@@ -42,18 +49,21 @@ std::string ClaudeProvider::extractContent(const Json::Value& parsed) {
     return "";
 }
 
-bool ClaudeProvider::isTerminal(const Json::Value& parsed) {
+bool ClaudeProvider::isTerminal(const Json::Value& parsed)
+{
     return parsed["type"].asString() == "message_stop";
 }
 
-std::string ClaudeProvider::getError(const Json::Value& parsed) {
+std::string ClaudeProvider::getError(const Json::Value& parsed)
+{
     if (parsed["type"].asString() == "error") {
         return parsed["error"]["message"].asString();
     }
     return "";
 }
 
-std::string ClaudeProvider::extractNonStreamingContent(const Json::Value& parsed) {
+std::string ClaudeProvider::extractNonStreamingContent(const Json::Value& parsed)
+{
     auto& content = parsed["content"];
     if (content.isArray()) {
         for (const auto& block : content) {
@@ -65,10 +75,11 @@ std::string ClaudeProvider::extractNonStreamingContent(const Json::Value& parsed
     return "";
 }
 
-void ClaudeProvider::authHeaders(const std::string& apiKey, std::map<std::string, std::string>& outHeaders) {
+void ClaudeProvider::authHeaders(const std::string& apiKey, std::map<std::string, std::string>& outHeaders)
+{
     outHeaders["x-api-key"] = apiKey;
     outHeaders["anthropic-version"] = "2023-06-01";
 }
 
-}  // namespace ai
-}  // namespace bot
+} // namespace ai
+} // namespace bot

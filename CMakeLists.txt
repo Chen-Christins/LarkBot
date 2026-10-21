@@ -3,8 +3,8 @@ project(LarkBot)
 
 set(ROOT_DIR ${PROJECT_SOURCE_DIR})
 
-include(cmake/utils.cmake)
 include(cmake/common.cmake)
+include(cmake/utils.cmake)
 include(cmake/dependencies.cmake)
 
 include_directories(.)

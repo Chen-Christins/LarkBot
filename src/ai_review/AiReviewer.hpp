@@ -7,10 +7,10 @@
  */
 #pragma once
 
-#include <json/json.h>
-
 #include <memory>
 #include <string>
+
+#include <chen/util/json_util.h>
 
 namespace bot {
 
@@ -32,20 +32,31 @@ private:
     static std::string getInstallationToken(const std::string& jwt, int64_t installationId);
 
     /// 获取 PR 的代码变更（所有文件的 patch）
-    static std::string getPRDiff(const std::string& token, const std::string& owner,
-                                 const std::string& repo, int prNumber);
+    static std::string getPRDiff(const std::string& token, const std::string& owner, const std::string& repo, int prNumber);
 
     /// 调用 AI 进行代码审查
-    static std::string callAIReview(const std::string& diff, const std::string& title,
-                                    const std::string& body, const std::string& repoName, int prNumber);
+    static std::string callAIReview(
+        const std::string& diff,
+        const std::string& title,
+        const std::string& body,
+        const std::string& repoName,
+        int prNumber);
 
     /// 向 PR 发表审查评论
-    static void postReviewComment(const std::string& token, const std::string& owner,
-                                  const std::string& repo, int prNumber, const std::string& review);
+    static void postReviewComment(
+        const std::string& token,
+        const std::string& owner,
+        const std::string& repo,
+        int prNumber,
+        const std::string& review);
 
     /// 构建 AI 审查的 prompt
-    static std::string buildReviewPrompt(const std::string& diff, const std::string& title,
-                                         const std::string& body, const std::string& repoName, int prNumber);
+    static std::string buildReviewPrompt(
+        const std::string& diff,
+        const std::string& title,
+        const std::string& body,
+        const std::string& repoName,
+        int prNumber);
 };
 
 } // namespace bot
