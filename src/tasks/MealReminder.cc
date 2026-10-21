@@ -27,8 +27,7 @@ static chen::ConfigVar<std::vector<int32_t>>::ptr g_meal_skip_weekdays =
 static chen::ConfigVar<bool>::ptr g_meal_test_on_startup =
     chen::Config::Lookup<bool>("meal_reminder.test_on_startup", false, "启动后立即发送一次点餐提醒");
 
-static chen::ConfigVar<std::string>::ptr g_meal_bot =
-    chen::Config::Lookup<std::string>("meal_reminder.bot", "", "点餐提醒发送的机器人，为空使用 github_bot");
+static chen::ConfigVar<std::string>::ptr g_meal_bot = chen::Config::Lookup<std::string>("meal_reminder.bot", "", "点餐提醒发送的机器人名称");
 
 static bool IsSkipDay(time_t ts)
 {
@@ -146,16 +145,15 @@ void MealReminder::sendCard()
     card.getData(cardJson);
 
     std::string botName = chen::StringUtil::Trim(g_meal_bot->getValue());
-    bool sent = false;
     if (botName.empty()) {
-        WARN(logger) << "meal reminder send failed, bot is empty";
-    } else {
-        sent = FeishuBotMgr::GetInstance()->send(botName, cardJson);
-        INFO(logger) << "meal reminder sent to bot=" << botName << ", result=" << sent;
+        ERROR(logger) << "meal reminder send failed, meal_reminder.bot is empty";
+        return;
     }
 
+    bool sent = FeishuBotMgr::GetInstance()->send(botName, cardJson);
+    INFO(logger) << "meal reminder sent to bot=" << botName << ", result=" << sent;
     if (!sent) {
-        ERROR(logger) << "meal reminder send failed, bot=" << (botName.empty() ? "github" : botName);
+        ERROR(logger) << "meal reminder send failed, bot=" << botName;
     }
 }
 
