@@ -3,7 +3,7 @@
 # collect.sh — 收集 LarkBot 部署所需文件并打包
 #
 # 用法:
-#   ./collect.sh [ENV]        # ENV 预留（LarkBot 配置为静态 system.yml，实际部署时由 CONFIG_DIR 覆盖）
+#   ./collect.sh [ENV]        # ENV 预留（LarkBot 配置为静态 YAML，实际部署时由 CONFIG_DIR 覆盖）
 #
 # 产物:
 #   dist/                         # 部署目录（可检查）
@@ -14,6 +14,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 STAGE_DIR="$ROOT_DIR/dist"
 PKG_NAME="$ROOT_DIR/larkbot-$(date +%Y%m%d%H%M%S).tar.gz"
+
+# 使用 SDK 提供的 server 程序，而不是业务构建的 bot_server
+SDK_SERVER="$ROOT_DIR/bin/server"
 
 # 查找 chen-sdk 的 libchen.so
 CHEN_SDK_LIB=""
@@ -32,7 +35,10 @@ check_file() {
     fi
 }
 
-check_file "$ROOT_DIR/bin/bot_server"
+if [ ! -f "$SDK_SERVER" ]; then
+    echo "错误: 缺少 $SDK_SERVER，请先执行 make apply 同步 SDK 的 bin/server" >&2
+    exit 1
+fi
 if [ -z "$CHEN_SDK_LIB" ]; then
     echo "错误: 找不到 chen-sdk-*/lib/libchen.so" >&2
     exit 1
@@ -52,9 +58,9 @@ echo "==> 打包 LarkBot"
 rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR/conf" "$STAGE_DIR/module" "$STAGE_DIR/lib" "$STAGE_DIR/logs"
 
-# 可执行文件
-cp "$ROOT_DIR/bin/bot_server" "$STAGE_DIR/bot_server"
-chmod +x "$STAGE_DIR/bot_server"
+# 可执行文件（SDK 提供的 server）
+cp "$SDK_SERVER" "$STAGE_DIR/server"
+chmod +x "$STAGE_DIR/server"
 
 # 模块
 for so in "${module_sos[@]}"; do

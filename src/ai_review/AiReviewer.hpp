@@ -7,10 +7,10 @@
  */
 #pragma once
 
-#include <json/json.h>
-
 #include <memory>
 #include <string>
+
+#include <chen/util/json_util.h>
 
 namespace bot {
 

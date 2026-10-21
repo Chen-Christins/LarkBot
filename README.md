@@ -37,7 +37,8 @@ make collect         # 打包到 dist/ 与 larkbot-<时间戳>.tar.gz
 ```
 
 产物在 `bin/` 目录下：
-- `bin/bot_server` — 可执行文件
+
+- `bin/server` — SDK 提供的框架启动程序
 - `bin/module/libbot.so` — 动态模块
 
 ### 配置
@@ -84,8 +85,27 @@ GitHub Webhook 地址保持不变，仍然发到 `feishu.github_bot` 指定的�
 
 ```bash
 cd bin
-./bot_server
+./server -d      # 后台运行
+# 或 ./server -s # 前台运行
 ```
+
+### 定时点餐提醒
+
+`meal_reminder` 每天（跳过 `skip_weekdays` 中的星期）在指定时间发送点餐提醒卡片：
+
+```yaml
+meal_reminder:
+  enabled: true
+  hour: 10
+  minute: 30
+  skip_weekdays: [ 5, 6 ]    # 周一=1 ... 周日=7，周五、周六不发送
+  test_on_startup: true    # 启动后立即发一次，方便测试
+  bot: ""                  # 为空时发到 feishu.github_bot
+```
+
+`skip_weekdays` 使用 ISO 星期：1=周一、2=周二、3=周三、4=周四、5=周五、6=周六、7=周日；`[5, 6]` 表示周五和周六不发送。
+
+`test_on_startup` 正式环境建议改为 `false`。卡片里使用了 `<at id=all></at>` 真正 @所有人，群主需要开启“@所有人”权限。
 
 ### 配置 GitHub Webhook
 
@@ -124,15 +144,16 @@ cd bin
 
 **部署（`.github/workflows/deploy.yml`）**：手动触发（可选分支或 tag），三种模式：
 
-| 模式 | 行为 |
-|------|------|
-| `cold` | 停服 → 清空运行目录 → 解压产物 → 用 `CONFIG_DIR` 覆盖 `conf/` → `./bot_server -d` |
-| `hot` | 解压产物 → 拷贝 `module/*.so` 到运行目录 → `./bot_server -s reload` |
-| `stop` | 执行 `./bot_server -s stop` |
+| 模式   | 行为                                                                          |
+|--------|-------------------------------------------------------------------------------|
+| `cold` | 停服 → 清空运行目录 → 解压产物 → 用 `CONFIG_DIR` 覆盖 `conf/` → `./server -d` |
+| `hot`  | 解压产物 → 拷贝 `module/*.so` 到运行目录 → `./server -s reload`               |
+| `stop` | 执行 `./server -s stop`                                                       |
 
 产物来源：tag → Release 资产；分支 → 该分支最近一次成功的 `Build & Package` artifact（`larkbot-amd64`）。
 
-服务器端逻辑在 `scripts/deploy.sh`。**Secrets**：`SSH_HOST`/`SSH_USER`/`SSH_PORT`/`SSH_PRIVATE_KEY`；**Variables**：`DEPLOY_PATH`、`CONFIG_DIR`（内含权威 `system.yml`，其 `server.work_path` 必须指向 `DEPLOY_PATH`）。
+服务器端逻辑在 `scripts/deploy.sh`。 **Secrets**：`SSH_HOST`/`SSH_USER`/`SSH_PORT`/`SSH_PRIVATE_KEY`； **Variables**：
+`DEPLOY_PATH`、`CONFIG_DIR`（内含权威配置，`server.work_path` 需指向 `DEPLOY_PATH`）。
 
 ## 项目结构
 

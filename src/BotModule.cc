@@ -5,6 +5,7 @@
 
 #include "./feishu/FeishuBotManager.hpp"
 #include "./servlets/GithubWebHook.hpp"
+#include "./tasks/MealReminder.hpp"
 
 namespace bot {
 
@@ -36,6 +37,7 @@ bool BotModule::onUnload()
 {
     INFO(logger) << "onUnload";
 
+    MealReminderMgr::GetInstance()->stop();
     FeishuBotMgr::GetInstance()->shutdown();
 
     return true;
@@ -64,6 +66,8 @@ bool BotModule::onServerUp()
 {
     INFO(logger) << "onServerUp";
 
+    MealReminderMgr::GetInstance()->start();
+
     return true;
 }
 
@@ -71,6 +75,7 @@ bool BotModule::onDeactivate()
 {
     INFO(logger) << "onDeactivate";
 
+    MealReminderMgr::GetInstance()->stop();
     FeishuBotMgr::GetInstance()->shutdown();
 
     return true;

@@ -4,7 +4,8 @@
 Reads dependencies.json (optionally overridden by dependencies.local.json) and
 downloads the matching chen-sdk release asset to the repository root, replacing
 any previously installed SDK. CMake and collect.sh keep working through their
-existing `chen-sdk-*` glob.
+existing `chen-sdk-*` glob. Third-party headers and cppjieba/limonp sources are
+installed under deps/ for compile-time use.
 """
 
 import argparse
@@ -28,9 +29,12 @@ CACHE_DIR = ROOT / ".deps-cache"
 
 SDK_KEY = "chen-sdk"
 THIRDPARTY_KEY = "thirdparty"
+CPPJIEBA_KEY = "cppjieba"
 DEFAULT_REPO = "Chen-Christins/chen"
 SDK_DIR_PREFIX = "chen-sdk-"
 DEPS_DIR = ROOT / "deps"
+CPPJIEBA_INCLUDE = DEPS_DIR / "include" / "cppjieba"
+LIMONP_INCLUDE = DEPS_DIR / "include" / "limonp"
 
 VERSION_RE = re.compile(r"^chen-sdk-(\d[\w.\-]*?)(?:-(arm64|amd64))?$")
 ASSET_RE = re.compile(r"^chen-sdk-(\d[\w.\-]*?)-(arm64|amd64)\.zip$")
@@ -398,6 +402,24 @@ def resolve_tp_arch(tp, sdk_cfg=None):
     return arch
 
 
+def cppjieba_config(manifest=None):
+    data = manifest if manifest is not None else load_json(MANIFEST)
+    cfg = data.get(CPPJIEBA_KEY)
+    if not cfg:
+        return None
+    override = load_json(LOCAL_OVERRIDE).get(CPPJIEBA_KEY, {})
+    cfg = dict(cfg)
+    cfg.update(override)
+    cfg.setdefault("repo", "yanyiwu/cppjieba")
+    cfg.setdefault("tag", "v5.1.0")
+    cfg.setdefault("limonp_repo", "yanyiwu/limonp")
+    return cfg
+
+
+def cppjieba_ready():
+    return (CPPJIEBA_INCLUDE / "Jieba.hpp").is_file() and (LIMONP_INCLUDE / "StringUtil.hpp").is_file()
+
+
 def ensure_asset(repo, tag, asset, ui):
     cache = CACHE_DIR / asset
     if cache.is_file() and cache.stat().st_size > 0:
@@ -408,6 +430,23 @@ def ensure_asset(repo, tag, asset, ui):
     ui.info(url)
     download(url, cache, ui)
     return cache
+
+
+def ensure_source_archive(repo, ref, asset, ui):
+    cache = CACHE_DIR / asset
+    if cache.is_file() and cache.stat().st_size > 0:
+        ui.ok(f"📦 命中缓存 {ui.path(cache.name)}")
+        return cache
+    url = f"https://github.com/{repo}/archive/{ref}.zip"
+    ui.step("📦", f"下载 {asset}")
+    ui.info(url)
+    download(url, cache, ui)
+    return cache
+
+
+def source_asset_name(prefix, ref):
+    value = re.sub(r"[^A-Za-z0-9._-]+", "-", ref).strip("-")
+    return f"{prefix}-{value or 'source'}.zip"
 
 
 def fetch_digest_tag(repo, tag, asset, ui):
@@ -495,6 +534,61 @@ def install_thirdparty(zip_path, ui):
     ensure_bin_executable(DEPS_DIR)
 
 
+def install_cppjieba_headers(cpp_zip, limonp_zip, ui):
+    tmp = Path(tempfile.mkdtemp(prefix=".cppjieba-tmp-", dir=ROOT))
+    try:
+        cpp_dir = tmp / "cppjieba"
+        limonp_dir = tmp / "limonp"
+        cpp_dir.mkdir()
+        limonp_dir.mkdir()
+        with zipfile.ZipFile(cpp_zip) as zf:
+            extract_zip_restore(zf, cpp_dir)
+        with zipfile.ZipFile(limonp_zip) as zf:
+            extract_zip_restore(zf, limonp_dir)
+
+        cpp_header = next(cpp_dir.rglob("include/cppjieba/Jieba.hpp"), None)
+        limonp_header = next(limonp_dir.rglob("include/limonp/StringUtil.hpp"), None)
+        if cpp_header is None:
+            raise DepsError(f"{Path(cpp_zip).name} 内未找到 include/cppjieba/Jieba.hpp")
+        if limonp_header is None:
+            raise DepsError(f"{Path(limonp_zip).name} 内未找到 include/limonp/StringUtil.hpp")
+
+        include_dir = DEPS_DIR / "include"
+        include_dir.mkdir(parents=True, exist_ok=True)
+        for dest in (CPPJIEBA_INCLUDE, LIMONP_INCLUDE):
+            if dest.exists():
+                shutil.rmtree(dest)
+        shutil.copytree(cpp_header.parent, CPPJIEBA_INCLUDE)
+        shutil.copytree(limonp_header.parent, LIMONP_INCLUDE)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    if not cppjieba_ready():
+        raise DepsError("cppjieba 头文件安装后校验失败")
+
+
+def sync_cppjieba(ui):
+    cfg = cppjieba_config()
+    if not cfg:
+        return 0
+    repo = cfg["repo"]
+    tag = cfg["tag"]
+    limonp_repo = cfg["limonp_repo"]
+    limonp_ref = cfg.get("limonp_ref")
+    if not limonp_ref:
+        raise DepsError("dependencies.json 中 cppjieba 缺少 limonp_ref")
+
+    cpp_zip = ensure_source_archive(repo, tag, source_asset_name("cppjieba", tag), ui)
+    limonp_zip = ensure_source_archive(
+        limonp_repo, limonp_ref, source_asset_name("limonp", limonp_ref), ui
+    )
+    install_cppjieba_headers(cpp_zip, limonp_zip, ui)
+    ui.ok(
+        f"✅ cppjieba 头文件已就绪 {ui.path('deps/include/cppjieba')} "
+        f"(tag={tag}, limonp={limonp_ref[:7]})"
+    )
+    return 0
+
+
 def sync_thirdparty(args, ui, sdk_cfg=None):
     tp = thirdparty_config()
     if not tp:
@@ -531,6 +625,13 @@ def sync_thirdparty(args, ui, sdk_cfg=None):
     return 0
 
 
+def sync_deps(args, ui, sdk_cfg=None):
+    rc = sync_thirdparty(args, ui, sdk_cfg)
+    if rc:
+        return rc
+    return sync_cppjieba(ui)
+
+
 def cmd_thirdparty(args, ui):
     sdk_cfg = None
     if MANIFEST.exists():
@@ -538,7 +639,7 @@ def cmd_thirdparty(args, ui):
             sdk_cfg = resolve_config()
         except DepsError:
             sdk_cfg = None
-    return sync_thirdparty(args, ui, sdk_cfg)
+    return sync_deps(args, ui, sdk_cfg)
 
 
 def cmd_sync(args, ui):
@@ -553,7 +654,7 @@ def cmd_sync(args, ui):
                 sdk_cfg = resolve_config()
             except DepsError:
                 sdk_cfg = None
-        rc = sync_thirdparty(args, ui, sdk_cfg)
+        rc = sync_deps(args, ui, sdk_cfg)
         if rc:
             return rc
     return 0
@@ -678,7 +779,12 @@ def cmd_current(args, ui):
         ui.info(f"三方依赖 deps/ 就绪（{len(libs)} 个静态库, include 齐全）tag={tp.get('tag')}")
     else:
         ui.warn("三方依赖 deps/ 未就绪（运行 ./deps.py sync 或 ./deps.py thirdparty）")
-    return 0 if (dirs or valid_deps_dir(DEPS_DIR)) else 1
+    if cppjieba_ready():
+        cfg_cpp = cppjieba_config() or {}
+        ui.info(f"cppjieba 头文件就绪（tag={cfg_cpp.get('tag')}）")
+    else:
+        ui.warn("cppjieba 头文件未就绪（运行 ./deps.py sync 或 ./deps.py thirdparty）")
+    return 0 if (dirs or valid_deps_dir(DEPS_DIR) or cppjieba_ready()) else 1
 
 
 def cmd_list(args, ui):
@@ -705,7 +811,7 @@ def cmd_list(args, ui):
             a.get("name")
             for a in release.get("assets", [])
             if isinstance(a.get("name"), str)
-            and (a["name"].startswith(SDK_DIR_PREFIX) or a["name"].startswith("deps-"))
+               and (a["name"].startswith(SDK_DIR_PREFIX) or a["name"].startswith("deps-"))
         ]
         print(f"🏷️  {ui.path(tag)}")
         for name in assets:
@@ -751,13 +857,13 @@ def build_parser():
     parser.add_argument("--keep-old", action="store_true", help="切换后保留旧版本，不清理")
     sub = parser.add_subparsers(dest="command")
 
-    p_sync = sub.add_parser("sync", aliases=["fetch", "install"], help="下载 chen-sdk 与三方依赖（thirdparty）")
+    p_sync = sub.add_parser("sync", aliases=["fetch", "install"], help="下载 chen-sdk、三方依赖与 cppjieba")
     p_sync.add_argument("--force", action="store_true", help="即使已安装也重新下载")
     p_sync.add_argument("--sdk-only", action="store_true", help="只同步 chen-sdk")
-    p_sync.add_argument("--thirdparty-only", action="store_true", help="只同步三方依赖")
+    p_sync.add_argument("--thirdparty-only", action="store_true", help="只同步三方依赖与 cppjieba")
     p_sync.set_defaults(func=cmd_sync)
 
-    p_tp = sub.add_parser("thirdparty", aliases=["deps"], help="只下载三方依赖到 deps/（头文件+静态库）")
+    p_tp = sub.add_parser("thirdparty", aliases=["deps"], help="只下载三方依赖与 cppjieba 到 deps/")
     p_tp.set_defaults(func=cmd_thirdparty)
 
     p_use = sub.add_parser("use", help="切换版本，或用本地包安装")

@@ -18,7 +18,7 @@ namespace bot {
 static chen::Logger::ptr logger = LOG_NAME("bot");
 
 static chen::ConfigVar<std::string>::ptr g_blog_rpc_address =
-    chen::Config::Lookup<std::string>("blog.rpc_address", "127.0.0.1:8092", "blog 后端 RPC 地址");
+    chen::Config::Lookup<std::string>("rpc_address.blog", "127.0.0.1:8092", "blog 后端 RPC 地址");
 
 static chen::ConfigVar<bool>::ptr g_ai_review_enabled = chen::Config::Lookup<bool>("ai_review.enabled", false, "是否开启 AI Review");
 

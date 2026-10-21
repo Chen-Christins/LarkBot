@@ -53,8 +53,9 @@ public:
         conf.name = node["name"].as<std::string>(conf.name);
         conf.webhook_url = node["webhook_url"].as<std::string>(conf.webhook_url);
         conf.secret = node["secret"].as<std::string>(conf.secret);
-        conf.enable_signature = node["enable_signature"].as<bool>(conf.enable_signature);
-        conf.enabled = node["enabled"].as<bool>(conf.enabled);
+        conf.enable_signature = chen::LexicalCast<std::string, bool>()(node["enable_signature"].Scalar());
+        conf.enabled = chen::LexicalCast<std::string, bool>()(node["enable_signature"].Scalar());
+        ;
         return conf;
     }
 };
