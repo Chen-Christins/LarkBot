@@ -27,7 +27,7 @@ static chen::ConfigVar<std::string>::ptr g_rd_bot = chen::Config::Lookup<std::st
 static void sendMessage(const Json::Value& cardJson)
 {
     std::string name = g_rd_bot->getValue();
-    if (!name.empty()) {
+    if (name.empty()) {
         WARN(logger) << "the rd notification bot is not config";
         return;
     }
