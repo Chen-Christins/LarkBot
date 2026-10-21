@@ -3,7 +3,6 @@
 #include <chen/application.h>
 #include <chen/log/log.h>
 
-#include "./feishu/FeishuBotManager.hpp"
 #include "./servlets/GithubWebHook.hpp"
 #include "./tasks/MealReminder.hpp"
 
@@ -38,7 +37,6 @@ bool BotModule::onUnload()
     INFO(logger) << "onUnload";
 
     MealReminderMgr::GetInstance()->stop();
-    FeishuBotMgr::GetInstance()->shutdown();
 
     return true;
 }
@@ -46,8 +44,6 @@ bool BotModule::onUnload()
 bool BotModule::onServerReady()
 {
     INFO(logger) << "onServerReady";
-
-    FeishuBotMgr::GetInstance()->init();
 
     std::vector<chen::http::HttpServer::ptr> servers;
     getAllHttpServer(servers);
@@ -76,7 +72,6 @@ bool BotModule::onDeactivate()
     INFO(logger) << "onDeactivate";
 
     MealReminderMgr::GetInstance()->stop();
-    FeishuBotMgr::GetInstance()->shutdown();
 
     return true;
 }

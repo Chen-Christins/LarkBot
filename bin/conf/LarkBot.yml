@@ -3,22 +3,18 @@ server:
   work_path: /home/chen/workspace/LarkBot
   pid_file: bot.pid
 
-# 飞书机器人配置：可配置多个，业务按 name 取对应的 webhook 发送。
-# GitHub Webhook 通知固定使用 github_bot，未配置时使用 default_bot。
+# 飞书机器人配置：可配置多个，业务代码按 name 取对应的 webhook 发送。
 feishu:
-  github_bot: "default"
-  default_bot: "default"
-
   bots:
-    - name: "default"
+    - name: "InkStackBot"
       webhook_url: ""                                    # 格式：https://open.feishu.cn/open-apis/bot/v2/hook/xxxx
       enable_signature: false
       secret: ""
       enabled: true
 
-    # - name: "alert"                                    # 告警
+    # - name: "MealBot"
     #   webhook_url: ""
-    #   enable_signature: true
+    #   enable_signature: false
     #   secret: ""
     #   enabled: true
 
@@ -29,7 +25,7 @@ meal_reminder:
   minute: 0
   skip_weekdays: [ 5, 6 ]        # 周一=1 ... 周日=7，周五、周六不发送
   test_on_startup: true        # 启动后立即发一次，方便测试；正式环境改为 false
-  bot: ""                      # 为空时使用 feishu.github_bot
+  bot: "InkStackBot"           # 测试用；正式环境改成 MealBot
 
 # blog 后端 RPC 服务地址，用于转发 GitHub webhook 数据
 rpc_address:

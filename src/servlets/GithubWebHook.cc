@@ -22,6 +22,18 @@ static chen::ConfigVar<std::string>::ptr g_blog_rpc_address =
 
 static chen::ConfigVar<bool>::ptr g_ai_review_enabled = chen::Config::Lookup<bool>("ai_review.enabled", false, "是否开启 AI Review");
 
+static chen::ConfigVar<std::string>::ptr g_rd_bot = chen::Config::Lookup<std::string>("rd.notify_bot", "", "rd 平台机器人 名称");
+
+static void sendMessage(const Json::Value& cardJson)
+{
+    std::string name = g_rd_bot->getValue();
+    if (!name.empty()) {
+        WARN(logger) << "the rd notification bot is not config";
+        return;
+    }
+    FeishuBotMgr::GetInstance()->send(name, cardJson);
+}
+
 /// tagGithubPRInfo 转字符串（用于日志打印）
 static std::string InfoToString(const tagGithubPRInfo& info)
 {
@@ -358,7 +370,7 @@ bool GithubWebHook::handlePushEvent(const Json::Value& payload, Result::ptr resu
     Json::Value cardJson;
     card.getData(cardJson);
 
-    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
+    sendMessage(cardJson);
 
     INFO(logger) << "push event: " << repoName << " " << refName << " " << before.substr(0, 7) << "->" << after.substr(0, 7)
                  << " commits:" << commits.size();
@@ -438,7 +450,7 @@ bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::p
     Json::Value cardJson;
     card.getData(cardJson);
 
-    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
+    sendMessage(cardJson);
 
     INFO(logger) << "pull_request event: " << repoName << " #" << number << " action=" << action << " " << headRef << "->" << baseRef;
 
@@ -526,7 +538,7 @@ bool GithubWebHook::handleCreateEvent(const Json::Value& payload, Result::ptr re
     Json::Value cardJson;
     card.getData(cardJson);
 
-    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
+    sendMessage(cardJson);
 
     INFO(logger) << "create event: " << repoName << " " << refType << " " << refName;
 
@@ -561,7 +573,7 @@ bool GithubWebHook::handleDeleteEvent(const Json::Value& payload, Result::ptr re
     Json::Value cardJson;
     card.getData(cardJson);
 
-    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
+    sendMessage(cardJson);
 
     INFO(logger) << "delete event: " << repoName << " " << refType << " " << ref;
 
@@ -625,7 +637,7 @@ bool GithubWebHook::handleWorkflowRunEvent(const Json::Value& payload, Result::p
     Json::Value cardJson;
     card.getData(cardJson);
 
-    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
+    sendMessage(cardJson);
 
     INFO(logger) << "workflow_run event: " << repoName << " " << name << " conclusion=" << conclusion << " branch=" << branch;
 
@@ -698,7 +710,7 @@ bool GithubWebHook::handleReleaseEvent(const Json::Value& payload, Result::ptr r
     Json::Value cardJson;
     card.getData(cardJson);
 
-    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
+    sendMessage(cardJson);
 
     INFO(logger) << "release event: " << repoName << " tag=" << tagName << " action=" << action << " prerelease=" << prerelease;
 
@@ -738,7 +750,7 @@ bool GithubWebHook::handleWatchEvent(const Json::Value& payload, Result::ptr res
     Json::Value cardJson;
     card.getData(cardJson);
 
-    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
+    sendMessage(cardJson);
 
     INFO(logger) << "watch event: " << senderName << " starred " << repoName << " (total: " << stargazersCount << ")";
 
@@ -818,7 +830,7 @@ bool GithubWebHook::handlePullRequestReviewEvent(const Json::Value& payload, Res
     Json::Value cardJson;
     card.getData(cardJson);
 
-    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
+    sendMessage(cardJson);
 
     INFO(logger) << "pull_request_review event: " << repoName << " PR #" << prNumber << " state=" << reviewState << " by " << senderName;
 
@@ -897,7 +909,7 @@ bool GithubWebHook::handlePullRequestReviewCommentEvent(const Json::Value& paylo
     Json::Value cardJson;
     card.getData(cardJson);
 
-    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
+    sendMessage(cardJson);
 
     INFO(logger) << "pull_request_review_comment event: " << repoName << " PR #" << prNumber << " file=" << filePath << " by " << senderName;
 
@@ -944,7 +956,7 @@ bool GithubWebHook::handleForkEvent(const Json::Value& payload, Result::ptr resu
     Json::Value cardJson;
     card.getData(cardJson);
 
-    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
+    sendMessage(cardJson);
 
     INFO(logger) << "fork event: " << senderName << " forked " << repoName << " -> " << forkeeName << " (total forks: " << forksCount << ")";
 
@@ -1027,7 +1039,7 @@ bool GithubWebHook::handleSecurityAdvisoryEvent(const Json::Value& payload, Resu
     Json::Value cardJson;
     card.getData(cardJson);
 
-    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
+    sendMessage(cardJson);
 
     INFO(logger) << "security_advisory event: " << repoName << " ghsa=" << ghsaId << " severity=" << severity << " action=" << action;
 

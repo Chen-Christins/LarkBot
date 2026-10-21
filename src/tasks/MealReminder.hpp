@@ -22,7 +22,7 @@ namespace bot {
  *   meal_reminder.hour             每天发送的小时（0-23）
  *   meal_reminder.minute           每天发送的分钟（0-59）
  *   meal_reminder.test_on_startup  启动后是否立即发送一次，便于测试
- *   meal_reminder.bot              发送目标机器人，为空时使用 feishu.github_bot
+ *   meal_reminder.bot              发送目标机器人名称，不能为空
  */
 class MealReminder {
 public:

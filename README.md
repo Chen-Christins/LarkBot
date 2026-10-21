@@ -47,22 +47,19 @@ make collect         # 打包到 dist/ 与 larkbot-<时间戳>.tar.gz
 
 ```yaml
 feishu:
-  github_bot: "default"      # GitHub Webhook 通知固定使用这个机器人
-  default_bot: "default"     # 未指定名字时使用的默认机器人
-
   bots:
-    - name: "default"
+    - name: "InkStackBot"   # GitHub Webhook 通知使用
       webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/xxxx"
       enable_signature: true
       secret: "your-feishu-secret"
       enabled: true
 
-    - name: "daily"          # 定时推送
+    - name: "MealBot"       # 点餐提醒使用
       webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/yyyy"
       enable_signature: true
-      secret: "your-daily-secret"
+      secret: "your-meal-secret"
 
-    - name: "alert"          # 告警
+    - name: "alert"         # 告警
       webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/zzzz"
       enable_signature: false
 ```
@@ -71,13 +68,13 @@ feishu:
 
 ```cpp
 auto mgr = bot::FeishuBotMgr::GetInstance();
-mgr->sendText("daily", "今日构建全部通过");
+mgr->sendText("MealBot", "今日构建全部通过");
 mgr->sendCard("alert", cardJson);
 ```
 
-GitHub Webhook 地址保持不变，仍然发到 `feishu.github_bot` 指定的机器人。
+GitHub Webhook 地址保持不变，业务代码通过 `SendGithubCard()` 指定机器人名称（当前为 `InkStackBot`）。
 
-修改 `LarkBot.yml` 后通过框架的配置变更回调自动生效，无需重启。
+每次发送时直接读取最新的 `feishu.bots` 配置，修改 `LarkBot.yml` 后无需重启。
 
 注意：`webhook_url` 和 `secret` 属于敏感信息，请勿提交到代码仓库。
 
@@ -100,7 +97,7 @@ meal_reminder:
   minute: 30
   skip_weekdays: [ 5, 6 ]    # 周一=1 ... 周日=7，周五、周六不发送
   test_on_startup: true    # 启动后立即发一次，方便测试
-  bot: ""                  # 为空时发到 feishu.github_bot
+  bot: "MealBot"           # 点餐提醒发到哪个机器人；测试可改为 InkStackBot
 ```
 
 `skip_weekdays` 使用 ISO 星期：1=周一、2=周二、3=周三、4=周四、5=周五、6=周六、7=周日；`[5, 6]` 表示周五和周六不发送。

@@ -11,14 +11,9 @@
 #include <chen/util/json_util.h>
 #include <chen/util/singleton.h>
 
-#include <atomic>
-#include <functional>
-#include <map>
 #include <memory>
-#include <mutex>
 #include <sstream>
 #include <string>
-#include <vector>
 
 namespace bot {
 
@@ -54,8 +49,7 @@ public:
         conf.webhook_url = node["webhook_url"].as<std::string>(conf.webhook_url);
         conf.secret = node["secret"].as<std::string>(conf.secret);
         conf.enable_signature = chen::LexicalCast<std::string, bool>()(node["enable_signature"].Scalar());
-        conf.enabled = chen::LexicalCast<std::string, bool>()(node["enable_signature"].Scalar());
-        ;
+        conf.enabled = chen::LexicalCast<std::string, bool>()(node["enabled"].Scalar());
         return conf;
     }
 };
@@ -97,40 +91,18 @@ struct FeishuBot {
 /**
  * @brief 飞书机器人管理器
  * @details 配置项：
- *   feishu.github_bot    GitHub Webhook 通知固定使用的机器人
- *   feishu.default_bot   未指定名字时使用的默认机器人
  *   feishu.bots          机器人列表
  *
- * 配置变更通过 ConfigVar 的 addListener 回调重建内存快照；发送失败只记录日志。
+ * 业务侧按名字发送；每次发送时直接读取 ConfigVar 的最新值，不维护缓存。
  */
 class FeishuBotManager {
 public:
     FeishuBotManager() = default;
 
     /**
-     * @brief 初始化：构建快照并注册配置变更回调
-     */
-    void init();
-
-    /**
-     * @brief 停止：移除配置变更回调
-     */
-    void shutdown();
-
-    /**
-     * @brief 按名字查找机器人，不存在返回 nullptr
+     * @brief 按名字查找机器人，不存在或配置非法返回 nullptr
      */
     FeishuBot::ptr get(const std::string& name);
-
-    /**
-     * @brief 默认机器人
-     */
-    FeishuBot::ptr defaultBot();
-
-    /**
-     * @brief GitHub Webhook 通知使用的机器人
-     */
-    FeishuBot::ptr githubBot();
 
     /**
      * @brief 按名字异步发送消息
@@ -160,45 +132,6 @@ public:
      * @param cardJson 完整的卡片消息 JSON（LarkCardProtocol::getData 的结果）
      */
     bool sendCard(const std::string& name, const Json::Value& cardJson);
-
-    /**
-     * @brief 向 GitHub 通知机器人异步发送消息
-     */
-    bool sendGithub(const Json::Value& payload);
-
-    bool sendGithubJson(const std::string& json);
-
-private:
-    struct Snapshot {
-        using ptr = std::shared_ptr<const Snapshot>;
-
-        std::map<std::string, FeishuBot::ptr> bots;
-        std::string default_bot;
-        std::string github_bot;
-    };
-
-    /**
-     * @brief 获取当前配置快照
-     */
-    Snapshot::ptr snapshot();
-
-    /**
-     * @brief 从当前配置重建快照
-     */
-    void rebuildFromCurrent();
-
-    /**
-     * @brief 配置变更后延迟重建，避免在 ConfigVar 回调持锁期间读取配置
-     */
-    void scheduleRebuild();
-
-    static Snapshot::ptr buildSnapshot(const std::vector<FeishuBotConf>& botsConf, const std::string& githubBot, const std::string& defaultBot);
-
-private:
-    std::mutex mutex_;
-    Snapshot::ptr snapshot_;
-    std::vector<std::function<void()>> listener_removers_;
-    std::atomic<bool> rebuild_pending_{false};
 };
 
 using FeishuBotMgr = chen::Singleton<FeishuBotManager>;
