@@ -7,8 +7,8 @@
  */
 #pragma once
 
-#include <chen/util/json_util.h>
 #include <chen/http/servlet.h>
+#include <chen/util/json_util.h>
 
 namespace bot {
 
@@ -23,18 +23,16 @@ struct Result {
     Json::Value jsondata_;
 
     template <class T>
-    void set(const std::string& key, const T& v) {
+    void set(const std::string& key, const T& v)
+    {
         jsondata_[key] = v;
     }
-    void set(const std::string& key, const char* v) {
-        jsondata_[key] = v;
-    }
-    void set(const std::string& key, const std::string& v) {
-        jsondata_[key] = v;
-    }
+    void set(const std::string& key, const char* v) { jsondata_[key] = v; }
+    void set(const std::string& key, const std::string& v) { jsondata_[key] = v; }
 
     template <class T>
-    void append(const std::string& key, const T& v) {
+    void append(const std::string& key, const T& v)
+    {
         jsondata_[key].append(v);
     }
 
@@ -47,14 +45,14 @@ class LarkBotServlet : public chen::http::Servlet {
 public:
     LarkBotServlet(const std::string& name);
 
-    virtual int32_t handle(chen::http::HttpRequest::ptr request, 
-                   chen::http::HttpResponse::ptr response, 
-                   chen::http::HttpSession::ptr session) override;
+    virtual int32_t handle(chen::http::HttpRequest::ptr request, chen::http::HttpResponse::ptr response, chen::http::HttpSession::ptr session)
+        override;
 
-    virtual int32_t handle(chen::http::HttpRequest::ptr request, 
-                   chen::http::HttpResponse::ptr response, 
-                   chen::http::HttpSession::ptr session,
-                   Result::ptr result) = 0;
+    virtual int32_t handle(
+        chen::http::HttpRequest::ptr request,
+        chen::http::HttpResponse::ptr response,
+        chen::http::HttpSession::ptr session,
+        Result::ptr result) = 0;
 };
 
 /**

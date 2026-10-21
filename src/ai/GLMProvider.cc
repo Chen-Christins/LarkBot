@@ -5,8 +5,13 @@
 namespace bot {
 namespace ai {
 
-std::string GLMProvider::buildRequest(const std::string& model, int32_t maxTokens, const std::string& systemPrompt
-        , const std::string& prompt, bool stream) {
+std::string GLMProvider::buildRequest(
+    const std::string& model,
+    int32_t maxTokens,
+    const std::string& systemPrompt,
+    const std::string& prompt,
+    bool stream)
+{
     Json::Value body;
     body["model"] = model;
     body["max_tokens"] = maxTokens;
@@ -34,9 +39,10 @@ std::string GLMProvider::buildRequest(const std::string& model, int32_t maxToken
     return chen::JsonUtil::ToString(body);
 }
 
-std::string GLMProvider::endpointSuffix() const {
+std::string GLMProvider::endpointSuffix() const
+{
     return "/api/paas/v4/chat/completions";
 }
 
-}  // namespace ai
-}  // namespace bot
+} // namespace ai
+} // namespace bot

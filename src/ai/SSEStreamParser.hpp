@@ -40,5 +40,5 @@ private:
     std::string current_event_;
 };
 
-}  // namespace ai
-}  // namespace bot
+} // namespace ai
+} // namespace bot

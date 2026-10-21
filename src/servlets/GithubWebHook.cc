@@ -1,69 +1,51 @@
 #include "GithubWebHook.hpp"
 
-#include <chen/log/log.h>
 #include <chen/config/config.h>
 #include <chen/http/http_connection.h>
-#include <chen/iomanager/iomanager.h>
+#include <chen/log/log.h>
 #include <chen/rpc/rpc_client_pool.h>
 
 #include <sstream>
 
 #include "../Struct.hpp"
-#include "../protocol/LarkCardProtocol.hpp"
 #include "../ai_review/AiReviewer.hpp"
+#include "../feishu/FeishuBotManager.hpp"
+#include "../protocol/LarkCardProtocol.hpp"
 #include "protocol_ss_github.h"
 
 namespace bot {
 
 static chen::Logger::ptr logger = LOG_NAME("bot");
 
-static chen::ConfigVar<std::string>::ptr g_feishu_webhook_url =
-    chen::Config::Lookup<std::string>("feishu.webhook_url", "", "飞书 Webhook 地址");
-
 static chen::ConfigVar<std::string>::ptr g_blog_rpc_address =
     chen::Config::Lookup<std::string>("blog.rpc_address", "127.0.0.1:8092", "blog 后端 RPC 地址");
 
-static chen::ConfigVar<bool>::ptr g_ai_review_enabled =
-    chen::Config::Lookup<bool>("ai_review.enabled", false, "是否开启 AI Review");
+static chen::ConfigVar<bool>::ptr g_ai_review_enabled = chen::Config::Lookup<bool>("ai_review.enabled", false, "是否开启 AI Review");
 
 /// tagGithubPRInfo 转字符串（用于日志打印）
-static std::string InfoToString(const tagGithubPRInfo& info) {
+static std::string InfoToString(const tagGithubPRInfo& info)
+{
     std::ostringstream oss;
-    oss << "PR #" << info.Number
-        << " Action=" << info.Action
-        << " Title=" << info.Title
-        << " State=" << info.State
-        << " Author=" << info.Author
-        << " HeadBranch=" << info.HeadBranch
-        << " BaseBranch=" << info.BaseBranch
-        << " HeadSha=" << info.HeadSha
-        << " Merged=" << (info.Merged ? "true" : "false")
-        << " ChangedFiles=" << info.ChangedFiles
-        << " Additions=" << info.Additions
-        << " Deletions=" << info.Deletions
-        << " CreatedAt=" << info.CreatedAt
-        << " ClosedAt=" << info.ClosedAt
-        << " MergedAt=" << info.MergedAt
-        << " RepoOwner=" << info.RepoOwner
-        << " RepoName=" << info.RepoName;
+    oss << "PR #" << info.Number << " Action=" << info.Action << " Title=" << info.Title << " State=" << info.State << " Author=" << info.Author
+        << " HeadBranch=" << info.HeadBranch << " BaseBranch=" << info.BaseBranch << " HeadSha=" << info.HeadSha
+        << " Merged=" << (info.Merged ? "true" : "false") << " ChangedFiles=" << info.ChangedFiles << " Additions=" << info.Additions
+        << " Deletions=" << info.Deletions << " CreatedAt=" << info.CreatedAt << " ClosedAt=" << info.ClosedAt << " MergedAt=" << info.MergedAt
+        << " RepoOwner=" << info.RepoOwner << " RepoName=" << info.RepoName;
     return oss.str();
 }
 
 /// tagGithubPRReviewInfo 转字符串（用于日志打印）
-static std::string ReviewInfoToString(const tagGithubPRReviewInfo& info) {
+static std::string ReviewInfoToString(const tagGithubPRReviewInfo& info)
+{
     std::ostringstream oss;
-    oss << "PR #" << info.PRNumber
-        << " Action=" << info.Action
-        << " Reviewer=" << info.Reviewer
-        << " State=" << info.State
-        << " SubmittedAt=" << info.SubmittedAt
-        << " RepoOwner=" << info.RepoOwner
-        << " RepoName=" << info.RepoName;
+    oss << "PR #" << info.PRNumber << " Action=" << info.Action << " Reviewer=" << info.Reviewer << " State=" << info.State
+        << " SubmittedAt=" << info.SubmittedAt << " RepoOwner=" << info.RepoOwner << " RepoName=" << info.RepoName;
     return oss.str();
 }
 
 /// 异步转发 PR 数据到 blog 后端
-static void ForwardPRToBlog(const tagGithubPRInfo& info) {
+static void ForwardPRToBlog(const tagGithubPRInfo& info)
+{
     std::string addr = g_blog_rpc_address->getValue();
     if (addr.empty()) {
         ERROR(logger) << "blog.rpc_address not configured, skip forwarding PR #" << info.Number;
@@ -100,14 +82,14 @@ static void ForwardPRToBlog(const tagGithubPRInfo& info) {
                 break;
             }
         } catch (std::exception& e) {
-            ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number
-                << " RPC call failed: " << e.what();
+            ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " RPC call failed: " << e.what();
         }
     });
 }
 
 /// 异步转发 PR Review 数据到 blog 后端
-static void ForwardPRReviewToBlog(const tagGithubPRReviewInfo& info) {
+static void ForwardPRReviewToBlog(const tagGithubPRReviewInfo& info)
+{
     std::string addr = g_blog_rpc_address->getValue();
     if (addr.empty()) {
         ERROR(logger) << "blog.rpc_address not configured, skip forwarding review";
@@ -119,9 +101,9 @@ static void ForwardPRReviewToBlog(const tagGithubPRReviewInfo& info) {
             ASSERT_RET(client);
 
             int32_t ret = client->call<int32_t>(SS_CMD_GET_GITHUB_PR_REVIEW_INFO, info);
-            
+
             TRACE(logger) << "ForwardPRReviewToBlog: " << ReviewInfoToString(info);
-            
+
             switch (ret) {
             case 0:
                 INFO(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " review sync success";
@@ -144,17 +126,18 @@ static void ForwardPRReviewToBlog(const tagGithubPRReviewInfo& info) {
                 break;
             }
         } catch (std::exception& e) {
-            ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber
-                << " RPC call failed: " << e.what();
+            ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " RPC call failed: " << e.what();
         }
     });
 }
 
 GithubWebHook::GithubWebHook()
-    : LarkBotServlet("github_webhook") {
+    : LarkBotServlet("github_webhook")
+{
 }
 
-GithubEvent GithubWebHook::parseEvent(const std::string& event) {
+GithubEvent GithubWebHook::parseEvent(const std::string& event)
+{
     if (event == "push") {
         return GithubEvent::PUSH;
     } else if (event == "create") {
@@ -183,8 +166,12 @@ GithubEvent GithubWebHook::parseEvent(const std::string& event) {
     }
 }
 
-int32_t GithubWebHook::handle(chen::http::HttpRequest::ptr request
-    , chen::http::HttpResponse::ptr response, chen::http::HttpSession::ptr session, Result::ptr result) {
+int32_t GithubWebHook::handle(
+    chen::http::HttpRequest::ptr request,
+    chen::http::HttpResponse::ptr response,
+    chen::http::HttpSession::ptr session,
+    Result::ptr result)
+{
     do {
         std::string event = request->getHeader("X-GitHub-Event");
         if (event.empty()) {
@@ -277,41 +264,8 @@ int32_t GithubWebHook::handle(chen::http::HttpRequest::ptr request
     return 0;
 }
 
-void GithubWebHook::sendFeishuMessage(const std::string& content) {
-    std::string feishuWebhookUrl = g_feishu_webhook_url->getValue();
-    if (feishuWebhookUrl.empty()) {
-        WARN(logger) << "feishu webhook url is empty, skip sending message";
-        return;
-    }
-
-    chen::IOManager::GetThis()->schedule([url = std::move(feishuWebhookUrl), content]() {
-        auto headers = std::map<std::string, std::string>{
-            {"Content-Type", "application/json"}
-        };
-
-        constexpr int kMaxRetries = 5;
-        for (int attempt = 1; attempt <= kMaxRetries; ++attempt) {
-            auto ret = chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::POST, url, 5000, headers, content);
-            if (ret->result == static_cast<int>(chen::http::HttpResult::Error::OK)) {
-                INFO(logger) << "send feishu message success";
-                return;
-            }
-            // 只对临时性错误重试
-            if (ret->result != static_cast<int>(chen::http::HttpResult::Error::TIMEOUT)
-                    && ret->result != static_cast<int>(chen::http::HttpResult::Error::CONNECT_FAIL)
-                    && ret->result != static_cast<int>(chen::http::HttpResult::Error::SEND_CLOSE_BY_PEER)
-                    && ret->result != static_cast<int>(chen::http::HttpResult::Error::SEND_SOCKET_ERROR)) {
-                WARN(logger) << "send feishu message failed, non-retryable error, data=" << ret->toString();
-                return;
-            }
-            WARN(logger) << "send feishu message failed (attempt " << attempt << "/" << kMaxRetries
-                << "), data=" << ret->toString();
-        }
-        ERROR(logger) << "send feishu message exhausted all retries";
-    });
-}
-
-bool GithubWebHook::handlePushEvent(const Json::Value& payload, Result::ptr result) {
+bool GithubWebHook::handlePushEvent(const Json::Value& payload, Result::ptr result)
+{
     std::string ref = payload.get("ref", "").asString();
     std::string before = payload.get("before", "").asString();
     std::string after = payload.get("after", "").asString();
@@ -376,8 +330,7 @@ bool GithubWebHook::handlePushEvent(const Json::Value& payload, Result::ptr resu
     // 每个 commit 详情
     for (const auto& commit : commits) {
         std::stringstream detail;
-        detail << "**" << commit["id"].asString().substr(0, 7) << "**  "
-               << commit["author"]["name"].asString() << "  \n"
+        detail << "**" << commit["id"].asString().substr(0, 7) << "**  " << commit["author"]["name"].asString() << "  \n"
                << commit["message"].asString() << "  \n";
 
         if (!commit["added"].empty() || !commit["removed"].empty() || !commit["modified"].empty()) {
@@ -401,19 +354,20 @@ bool GithubWebHook::handlePushEvent(const Json::Value& payload, Result::ptr resu
     card.addElement(LarkCardProtocol::buttonElement("View Compare", compare));
 
     card.build();
-    
+
     Json::Value cardJson;
     card.getData(cardJson);
-    
-    sendFeishuMessage(cardJson.toStyledString());
 
-    INFO(logger) << "push event: " << repoName << " " << refName << " " 
-        << before.substr(0, 7) << "->" << after.substr(0, 7) << " commits:" << commits.size();
+    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
+
+    INFO(logger) << "push event: " << repoName << " " << refName << " " << before.substr(0, 7) << "->" << after.substr(0, 7)
+                 << " commits:" << commits.size();
 
     return true;
 }
 
-bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::ptr result) {
+bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::ptr result)
+{
     std::string action = payload.get("action", "").asString();
     const Json::Value& pr = payload["pull_request"];
     const Json::Value& repo = payload["repository"];
@@ -484,10 +438,9 @@ bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::p
     Json::Value cardJson;
     card.getData(cardJson);
 
-    sendFeishuMessage(cardJson.toStyledString());
+    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
 
-    INFO(logger) << "pull_request event: " << repoName << " #" << number
-        << " action=" << action << " " << headRef << "->" << baseRef;
+    INFO(logger) << "pull_request event: " << repoName << " #" << number << " action=" << action << " " << headRef << "->" << baseRef;
 
     // 如果开启了，则异步触发 AI 代码审查
     if (g_ai_review_enabled->getValue()) {
@@ -527,7 +480,8 @@ bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::p
     return true;
 }
 
-bool GithubWebHook::handleCreateEvent(const Json::Value& payload, Result::ptr result) {
+bool GithubWebHook::handleCreateEvent(const Json::Value& payload, Result::ptr result)
+{
     std::string ref = payload.get("ref", "").asString();
     std::string refType = payload.get("ref_type", "").asString();
     const Json::Value& repo = payload["repository"];
@@ -572,14 +526,15 @@ bool GithubWebHook::handleCreateEvent(const Json::Value& payload, Result::ptr re
     Json::Value cardJson;
     card.getData(cardJson);
 
-    sendFeishuMessage(cardJson.toStyledString());
+    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
 
     INFO(logger) << "create event: " << repoName << " " << refType << " " << refName;
 
     return true;
 }
 
-bool GithubWebHook::handleDeleteEvent(const Json::Value& payload, Result::ptr result) {
+bool GithubWebHook::handleDeleteEvent(const Json::Value& payload, Result::ptr result)
+{
     std::string ref = payload.get("ref", "").asString();
     std::string refType = payload.get("ref_type", "").asString();
     const Json::Value& repo = payload["repository"];
@@ -606,14 +561,15 @@ bool GithubWebHook::handleDeleteEvent(const Json::Value& payload, Result::ptr re
     Json::Value cardJson;
     card.getData(cardJson);
 
-    sendFeishuMessage(cardJson.toStyledString());
+    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
 
     INFO(logger) << "delete event: " << repoName << " " << refType << " " << ref;
 
     return true;
 }
 
-bool GithubWebHook::handleWorkflowRunEvent(const Json::Value& payload, Result::ptr result) {
+bool GithubWebHook::handleWorkflowRunEvent(const Json::Value& payload, Result::ptr result)
+{
     std::string action = payload.get("action", "").asString();
     const Json::Value& run = payload["workflow_run"];
     const Json::Value& repo = payload["repository"];
@@ -669,15 +625,15 @@ bool GithubWebHook::handleWorkflowRunEvent(const Json::Value& payload, Result::p
     Json::Value cardJson;
     card.getData(cardJson);
 
-    sendFeishuMessage(cardJson.toStyledString());
+    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
 
-    INFO(logger) << "workflow_run event: " << repoName << " " << name
-        << " conclusion=" << conclusion << " branch=" << branch;
+    INFO(logger) << "workflow_run event: " << repoName << " " << name << " conclusion=" << conclusion << " branch=" << branch;
 
     return true;
 }
 
-bool GithubWebHook::handleReleaseEvent(const Json::Value& payload, Result::ptr result) {
+bool GithubWebHook::handleReleaseEvent(const Json::Value& payload, Result::ptr result)
+{
     std::string action = payload.get("action", "").asString();
     const Json::Value& release = payload["release"];
     const Json::Value& repo = payload["repository"];
@@ -742,15 +698,15 @@ bool GithubWebHook::handleReleaseEvent(const Json::Value& payload, Result::ptr r
     Json::Value cardJson;
     card.getData(cardJson);
 
-    sendFeishuMessage(cardJson.toStyledString());
+    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
 
-    INFO(logger) << "release event: " << repoName << " tag=" << tagName
-        << " action=" << action << " prerelease=" << prerelease;
+    INFO(logger) << "release event: " << repoName << " tag=" << tagName << " action=" << action << " prerelease=" << prerelease;
 
     return true;
 }
 
-bool GithubWebHook::handleWatchEvent(const Json::Value& payload, Result::ptr result) {
+bool GithubWebHook::handleWatchEvent(const Json::Value& payload, Result::ptr result)
+{
     std::string action = payload.get("action", "").asString();
     if (action != "started") {
         INFO(logger) << "watch event action=" << action << " skip";
@@ -782,15 +738,15 @@ bool GithubWebHook::handleWatchEvent(const Json::Value& payload, Result::ptr res
     Json::Value cardJson;
     card.getData(cardJson);
 
-    sendFeishuMessage(cardJson.toStyledString());
+    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
 
-    INFO(logger) << "watch event: " << senderName << " starred " << repoName
-        << " (total: " << stargazersCount << ")";
+    INFO(logger) << "watch event: " << senderName << " starred " << repoName << " (total: " << stargazersCount << ")";
 
     return true;
 }
 
-bool GithubWebHook::handlePullRequestReviewEvent(const Json::Value& payload, Result::ptr result) {
+bool GithubWebHook::handlePullRequestReviewEvent(const Json::Value& payload, Result::ptr result)
+{
     std::string action = payload.get("action", "").asString();
     const Json::Value& review = payload["review"];
     const Json::Value& pr = payload["pull_request"];
@@ -862,10 +818,9 @@ bool GithubWebHook::handlePullRequestReviewEvent(const Json::Value& payload, Res
     Json::Value cardJson;
     card.getData(cardJson);
 
-    sendFeishuMessage(cardJson.toStyledString());
+    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
 
-    INFO(logger) << "pull_request_review event: " << repoName << " PR #" << prNumber
-        << " state=" << reviewState << " by " << senderName;
+    INFO(logger) << "pull_request_review event: " << repoName << " PR #" << prNumber << " state=" << reviewState << " by " << senderName;
 
     // 转发到 blog 后端
     {
@@ -888,7 +843,8 @@ bool GithubWebHook::handlePullRequestReviewEvent(const Json::Value& payload, Res
     return true;
 }
 
-bool GithubWebHook::handlePullRequestReviewCommentEvent(const Json::Value& payload, Result::ptr result) {
+bool GithubWebHook::handlePullRequestReviewCommentEvent(const Json::Value& payload, Result::ptr result)
+{
     std::string action = payload.get("action", "").asString();
     const Json::Value& comment = payload["comment"];
     const Json::Value& pr = payload["pull_request"];
@@ -941,15 +897,15 @@ bool GithubWebHook::handlePullRequestReviewCommentEvent(const Json::Value& paylo
     Json::Value cardJson;
     card.getData(cardJson);
 
-    sendFeishuMessage(cardJson.toStyledString());
+    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
 
-    INFO(logger) << "pull_request_review_comment event: " << repoName << " PR #" << prNumber
-        << " file=" << filePath << " by " << senderName;
+    INFO(logger) << "pull_request_review_comment event: " << repoName << " PR #" << prNumber << " file=" << filePath << " by " << senderName;
 
     return true;
 }
 
-bool GithubWebHook::handleForkEvent(const Json::Value& payload, Result::ptr result) {
+bool GithubWebHook::handleForkEvent(const Json::Value& payload, Result::ptr result)
+{
     const Json::Value& forkee = payload["forkee"];
     const Json::Value& repo = payload["repository"];
     const Json::Value& sender = payload["sender"];
@@ -988,15 +944,15 @@ bool GithubWebHook::handleForkEvent(const Json::Value& payload, Result::ptr resu
     Json::Value cardJson;
     card.getData(cardJson);
 
-    sendFeishuMessage(cardJson.toStyledString());
+    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
 
-    INFO(logger) << "fork event: " << senderName << " forked " << repoName
-        << " -> " << forkeeName << " (total forks: " << forksCount << ")";
+    INFO(logger) << "fork event: " << senderName << " forked " << repoName << " -> " << forkeeName << " (total forks: " << forksCount << ")";
 
     return true;
 }
 
-bool GithubWebHook::handleSecurityAdvisoryEvent(const Json::Value& payload, Result::ptr result) {
+bool GithubWebHook::handleSecurityAdvisoryEvent(const Json::Value& payload, Result::ptr result)
+{
     std::string action = payload.get("action", "").asString();
     const Json::Value& advisory = payload["security_advisory"];
     const Json::Value& repo = payload["repository"];
@@ -1059,8 +1015,7 @@ bool GithubWebHook::handleSecurityAdvisoryEvent(const Json::Value& payload, Resu
     if (!cveId.empty()) {
         msg << "**CVE ID:** `" << cveId << "`\n";
     }
-    msg << "**Severity:** " << severity << " " << emoji << "\n\n"
-        << description;
+    msg << "**Severity:** " << severity << " " << emoji << "\n\n" << description;
     card.addElement(LarkCardProtocol::markdownElement(msg.str()));
 
     if (!htmlUrl.empty()) {
@@ -1072,10 +1027,9 @@ bool GithubWebHook::handleSecurityAdvisoryEvent(const Json::Value& payload, Resu
     Json::Value cardJson;
     card.getData(cardJson);
 
-    sendFeishuMessage(cardJson.toStyledString());
+    FeishuBotMgr::GetInstance()->sendGithubJson(chen::JsonUtil::ToString(cardJson));
 
-    INFO(logger) << "security_advisory event: " << repoName
-        << " ghsa=" << ghsaId << " severity=" << severity << " action=" << action;
+    INFO(logger) << "security_advisory event: " << repoName << " ghsa=" << ghsaId << " severity=" << severity << " action=" << action;
 
     return true;
 }

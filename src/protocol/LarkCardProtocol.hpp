@@ -22,34 +22,36 @@ public:
     virtual void getData(Json::Value& value) const override;
 
     // 设置卡片头部
-    void setHeader(const std::string& title,
-                   const std::string& subtitle = "",
-                   const std::string& templateColor = "blue",
-                   const std::string& padding = "12px 12px 12px 12px");
+    void setHeader(
+        const std::string& title,
+        const std::string& subtitle = "",
+        const std::string& templateColor = "blue",
+        const std::string& padding = "12px 12px 12px 12px");
 
     // 设置卡片配置
     void setConfig(bool updateMulti = true);
 
     // 设置卡片主体布局
-    void setBodyLayout(const std::string& direction = "vertical",
-                       const std::string& padding = "12px 12px 12px 12px");
+    void setBodyLayout(const std::string& direction = "vertical", const std::string& padding = "12px 12px 12px 12px");
 
     // 向 body 添加元素
     void addElement(const Json::Value& element);
 
     // 静态工厂方法：常用卡片元素
     static Json::Value plainText(const std::string& content);
-    static Json::Value markdownElement(const std::string& content,
-                                       const std::string& textAlign = "left",
-                                       const std::string& textSize = "normal_v2",
-                                       const std::string& margin = "0px 0px 0px 0px");
+    static Json::Value markdownElement(
+        const std::string& content,
+        const std::string& textAlign = "left",
+        const std::string& textSize = "normal_v2",
+        const std::string& margin = "0px 0px 0px 0px");
 
-    static Json::Value buttonElement(const std::string& text,
-                                     const std::string& url,
-                                     const std::string& type = "default",
-                                     const std::string& width = "default",
-                                     const std::string& size = "medium",
-                                     const std::string& margin = "0px 0px 0px 0px");
+    static Json::Value buttonElement(
+        const std::string& text,
+        const std::string& url,
+        const std::string& type = "default",
+        const std::string& width = "default",
+        const std::string& size = "medium",
+        const std::string& margin = "0px 0px 0px 0px");
 
 private:
     std::string header_title_;

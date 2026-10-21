@@ -4,7 +4,8 @@
 
 namespace bot {
 
-void RichTextProtocol::build() {
+void RichTextProtocol::build()
+{
     data_.clear();
 
     Protocol::build();
@@ -14,33 +15,39 @@ void RichTextProtocol::build() {
     data_["content"]["post"]["zh_cn"]["content"] = paragraphs_;
 }
 
-std::string RichTextProtocol::toString() const {
+std::string RichTextProtocol::toString() const
+{
     return chen::JsonUtil::ToString(data_);
 }
 
-void RichTextProtocol::getData(Json::Value& value) const {
+void RichTextProtocol::getData(Json::Value& value) const
+{
     if (data_.empty()) {
         const_cast<RichTextProtocol*>(this)->build();
     }
     value = data_;
 }
 
-void RichTextProtocol::setTitle(const std::string& title) {
+void RichTextProtocol::setTitle(const std::string& title)
+{
     title_ = title;
 }
 
-void RichTextProtocol::addParagraph(const Json::Value& paragraph) {
+void RichTextProtocol::addParagraph(const Json::Value& paragraph)
+{
     paragraphs_.append(paragraph);
 }
 
-Json::Value RichTextProtocol::textElement(const std::string& text) {
+Json::Value RichTextProtocol::textElement(const std::string& text)
+{
     Json::Value elem;
     elem["tag"] = "text";
     elem["text"] = text;
     return elem;
 }
 
-Json::Value RichTextProtocol::linkElement(const std::string& text, const std::string& href) {
+Json::Value RichTextProtocol::linkElement(const std::string& text, const std::string& href)
+{
     Json::Value elem;
     elem["tag"] = "a";
     elem["text"] = text;
@@ -48,14 +55,16 @@ Json::Value RichTextProtocol::linkElement(const std::string& text, const std::st
     return elem;
 }
 
-Json::Value RichTextProtocol::atElement(const std::string& user_id) {
+Json::Value RichTextProtocol::atElement(const std::string& user_id)
+{
     Json::Value elem;
     elem["tag"] = "at";
     elem["user_id"] = user_id;
     return elem;
 }
 
-Json::Value RichTextProtocol::atAllElement() {
+Json::Value RichTextProtocol::atAllElement()
+{
     Json::Value elem;
     elem["tag"] = "at";
     elem["user_id"] = "all";

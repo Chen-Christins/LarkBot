@@ -1,0 +1,30 @@
+# Logging configuration, defining different loggers for root, system, and access logs with their respective levels, formatters, and appenders.
+logs:
+  - name: root
+    level: info
+    formatter: "[%d{%Y-%m-%d %H:%M:%S.%f}]%T%t%T%N%T[%p]%T[%c]%T%f:%l%T%m%n"
+    appenders:
+      - type: FileLogAppender
+        file: /home/chen/workspace/LarkBot/logs/root.log
+      - type: StdoutLogAppender
+  - name: system
+    level: info
+    formatter: "[%d{%Y-%m-%d %H:%M:%S.%f}]%T%t%T%N%T[%p]%T[%c]%T%f:%l%T%m%n"
+    appenders:
+      - type: FileLogAppender
+        file: /home/chen/workspace/LarkBot/logs/system.log
+      - type: StdoutLogAppender
+  - name: access
+    level: info
+    formatter: "[%d{%Y-%m-%d %H:%M:%S.%f}]%T%t%T%N%T[%p]%T[%c]%T%f:%l%T%m%n"
+    appenders:
+      - type: FileLogAppender
+        file: /home/chen/workspace/LarkBot/logs/access.log
+      - type: StdoutLogAppender
+  - name: bot
+    level: info
+    formatter: "[%d{%Y-%m-%d %H:%M:%S.%f}]%T%t%T%N%T[%p]%T[%c]%T%f:%l%T%m%n"
+    appenders:
+      - type: FileLogAppender
+        file: /home/chen/workspace/LarkBot/logs/bot.log
+      - type: StdoutLogAppender

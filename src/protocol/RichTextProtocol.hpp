@@ -31,6 +31,6 @@ public:
 
 private:
     std::string title_;
-    Json::Value paragraphs_;  // Json::arrayValue
+    Json::Value paragraphs_; // Json::arrayValue
 };
 } // namespace bot

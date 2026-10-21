@@ -10,8 +10,8 @@
 #include <map>
 #include <shared_mutex>
 
-#include <chen/util/singleton.h>
 #include <chen/util/json_util.h>
+#include <chen/util/singleton.h>
 
 namespace bot {
 
@@ -29,7 +29,7 @@ public:
 
     /**
      * @brief 协议内容转换为字符串
-     * @return std::string 
+     * @return std::string
      */
     virtual std::string toString() const = 0;
 
@@ -49,7 +49,7 @@ public:
     ProtocolManager() = default;
 
     void registerProtocol(const std::string& name, Protocol::ptr protocol);
-    
+
     Protocol::ptr getProtocol(const std::string& name) const;
 
 private:

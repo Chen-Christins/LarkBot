@@ -7,8 +7,8 @@
  */
 #pragma once
 
-#include <chen/module/module.h>
 #include <chen/http/http_server.h>
+#include <chen/module/module.h>
 
 namespace bot {
 
@@ -56,14 +56,6 @@ public:
      * @return bool 是否成功
      */
     bool onServerUp() override;
-
-    /**
-     * @brief 模块激活：新模块接管流量时调用（热重载）
-     * @details 在所有 server 的 dispatch 切换后调用。模块应在此方法中
-     *          注册新的 servlet/handler。默认实现调用 onServerReady()。
-     * @return bool
-     */
-    bool onActivate() override;
 
     /**
      * @brief 模块停用：旧模块被替换时调用（热重载）

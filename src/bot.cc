@@ -3,7 +3,8 @@
 
 static chen::Logger::ptr logger = LOG_NAME("bot");
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     try {
         srand(time(0));
         chen::Application app;

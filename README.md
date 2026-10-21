@@ -42,19 +42,41 @@ make collect         # 打包到 dist/ 与 larkbot-<时间戳>.tar.gz
 
 ### 配置
 
-编辑 `bin/conf/system.yml`，设置飞书 webhook 地址：
+编辑 `bin/conf/LarkBot.yml`。飞书支持配置多个机器人，业务按 `name` 取对应的 webhook 发送：
 
 ```yaml
 feishu:
-  webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/xxxx-xxxx-xxxx-xxxx"
+  github_bot: "default"      # GitHub Webhook 通知固定使用这个机器人
+  default_bot: "default"     # 未指定名字时使用的默认机器人
+
+  bots:
+    - name: "default"
+      webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/xxxx"
+      enable_signature: true
+      secret: "your-feishu-secret"
+      enabled: true
+
+    - name: "daily"          # 定时推送
+      webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/yyyy"
+      enable_signature: true
+      secret: "your-daily-secret"
+
+    - name: "alert"          # 告警
+      webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/zzzz"
+      enable_signature: false
 ```
 
-支持飞书签名验证（可选）：
+业务代码按名字发送：
 
-    feishu:
-      webhook_url: "..."
-      enable_signature: 1
-      secret: "your-feishu-secret"
+```cpp
+auto mgr = bot::FeishuBotMgr::GetInstance();
+mgr->sendText("daily", "今日构建全部通过");
+mgr->sendCard("alert", cardJson);
+```
+
+GitHub Webhook 地址保持不变，仍然发到 `feishu.github_bot` 指定的机器人。
+
+修改 `LarkBot.yml` 后通过框架的配置变更回调自动生效，无需重启。
 
 注意：`webhook_url` 和 `secret` 属于敏感信息，请勿提交到代码仓库。
 
@@ -79,7 +101,7 @@ cd bin
 
 ```json
 {
-  "chen-sdk":   { "repo": "Chen-Christins/chen", "version": "1.5.5", "arch": "auto" },
+  "chen-sdk":   { "repo": "Chen-Christins/chen", "version": "1.6.0", "arch": "auto" },
   "thirdparty": { "repo": "Chen-Christins/chen", "tag": "v1.0.0", "asset": "deps-{arch}.zip" }
 }
 ```
@@ -119,6 +141,9 @@ src/
 ├── bot.cc                      # 入口
 ├── BotModule.h / .cc           # 模块生命周期，Servlet 注册
 ├── Struct.hpp / .cc            # Result / LarkBotServlet / feishuSign
+├── Utils.hpp / .cc             # 业务侧通用工具（配置解析、URL/标识符校验）
+├── feishu/
+│   └── FeishuBotManager.hpp / .cc # 多机器人配置、按名字查找、签名与发送
 ├── servlets/
 │   └── GithubWebHook.hpp / .cc # GitHub Webhook 处理
 └── protocol/

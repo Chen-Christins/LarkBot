@@ -16,8 +16,12 @@ class GLMProvider : public OpenAIProvider {
 public:
     typedef std::shared_ptr<GLMProvider> ptr;
 
-    std::string buildRequest(const std::string& model, int32_t maxTokens, const std::string& systemPrompt,
-                             const std::string& prompt, bool stream = true) override;
+    std::string buildRequest(
+        const std::string& model,
+        int32_t maxTokens,
+        const std::string& systemPrompt,
+        const std::string& prompt,
+        bool stream = true) override;
 
     std::string endpointSuffix() const override;
 };
