@@ -106,6 +106,7 @@ public:
 
     /**
      * @brief 按名字异步发送消息
+     * @param name 机器人名称
      * @param payload 完整的飞书消息 JSON（包含 msg_type）
      * @return true 表示已成功调度；实际发送结果见日志
      */
