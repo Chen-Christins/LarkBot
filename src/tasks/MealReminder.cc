@@ -5,6 +5,7 @@
 #include <chen/log/log.h>
 #include <chen/util/string_util.h>
 #include <chen/util/time_util.h>
+#include <chen/util/type_util.h>
 
 #include <algorithm>
 
@@ -17,9 +18,8 @@ static chen::Logger::ptr logger = LOG_NAME("bot");
 
 static chen::ConfigVar<bool>::ptr g_meal_enabled = chen::Config::Lookup<bool>("meal_reminder.enabled", true, "是否启用每日点餐提醒");
 
-static chen::ConfigVar<int32_t>::ptr g_meal_hour = chen::Config::Lookup<int32_t>("meal_reminder.hour", 10, "点餐提醒发送小时");
-
-static chen::ConfigVar<int32_t>::ptr g_meal_minute = chen::Config::Lookup<int32_t>("meal_reminder.minute", 30, "点餐提醒发送分钟");
+static chen::ConfigVar<std::vector<std::string>>::ptr g_meal_timers =
+    chen::Config::Lookup<std::vector<std::string>>("meal_reminder.timers", {}, "Reminder timer list");
 
 static chen::ConfigVar<std::vector<int32_t>>::ptr g_meal_skip_weekdays =
     chen::Config::Lookup<std::vector<int32_t>>("meal_reminder.skip_weekdays", std::vector<int32_t>{}, "不发送的星期，1=周一 ... 7=周日");
@@ -28,6 +28,56 @@ static chen::ConfigVar<bool>::ptr g_meal_test_on_startup =
     chen::Config::Lookup<bool>("meal_reminder.test_on_startup", false, "启动后立即发送一次点餐提醒");
 
 static chen::ConfigVar<std::string>::ptr g_meal_bot = chen::Config::Lookup<std::string>("meal_reminder.bot", "", "点餐提醒发送的机器人名称");
+
+/**
+ * @brief 解析 "HH:MM" 或 "HH:MM:SS" 为当天秒偏移
+ */
+static bool ParseTimer(const std::string& value, int32_t& secondsOfDay)
+{
+    auto parts = chen::StringUtil::Split(value, ':');
+    if (parts.size() != 2 && parts.size() != 3) {
+        return false;
+    }
+
+    int32_t nums[3] = {0, 0, 0};
+    for (size_t i = 0; i < parts.size(); ++i) {
+        std::string part = chen::StringUtil::Trim(parts[i]);
+        bool digits = !part.empty() && std::all_of(part.begin(), part.end(), [](char c) {
+            return c >= '0' && c <= '9';
+        });
+        if (!digits) {
+            return false;
+        }
+        nums[i] = chen::TypeUtil::Atoi(part);
+    }
+
+    if (nums[0] > 23 || nums[1] > 59 || nums[2] > 59) {
+        return false;
+    }
+
+    secondsOfDay = nums[0] * 3600 + nums[1] * 60 + nums[2];
+    return true;
+}
+
+/**
+ * @brief 读取并解析 meal_reminder.timers，按时间排序去重
+ */
+static std::vector<int32_t> LoadTimers()
+{
+    std::vector<int32_t> timers;
+    for (const auto& item : g_meal_timers->getValue()) {
+        int32_t secondsOfDay = 0;
+        if (!ParseTimer(item, secondsOfDay)) {
+            WARN(logger) << "invalid meal_reminder.timers item: " << item << ", expected HH:MM";
+            continue;
+        }
+        if (std::find(timers.begin(), timers.end(), secondsOfDay) == timers.end()) {
+            timers.push_back(secondsOfDay);
+        }
+    }
+    std::sort(timers.begin(), timers.end());
+    return timers;
+}
 
 static bool IsSkipDay(time_t ts)
 {
@@ -61,7 +111,21 @@ void MealReminder::start()
         return;
     }
 
-    INFO(logger) << "meal reminder started, send at " << g_meal_hour->getValue() << ":" << g_meal_minute->getValue();
+    auto timers = LoadTimers();
+    if (timers.empty()) {
+        ERROR(logger) << "meal reminder start failed, meal_reminder.timers is empty or invalid";
+        running_ = false;
+        return;
+    }
+
+    std::vector<std::string> timerTexts;
+    for (const auto& item : g_meal_timers->getValue()) {
+        std::string timer = chen::StringUtil::Trim(item);
+        if (!timer.empty()) {
+            timerTexts.push_back(timer);
+        }
+    }
+    INFO(logger) << "meal reminder started, send at " << chen::StringUtil::Join(timerTexts, ", ");
 
     if (g_meal_test_on_startup->getValue()) {
         if (IsSkipDay(chen::TimeUtil::GetCurrentSec())) {
@@ -92,18 +156,18 @@ void MealReminder::scheduleNext()
         return;
     }
 
-    int hour = g_meal_hour->getValue();
-    int minute = g_meal_minute->getValue();
-    if (hour < 0 || hour > 23) {
-        ERROR(logger) << "invalid meal_reminder.hour=" << hour << ", fallback to 10";
-        hour = 10;
-    }
-    if (minute < 0 || minute > 59) {
-        ERROR(logger) << "invalid meal_reminder.minute=" << minute << ", fallback to 30";
-        minute = 30;
+    auto timers = LoadTimers();
+    if (timers.empty()) {
+        ERROR(logger) << "meal reminder schedule failed, meal_reminder.timers is empty or invalid";
+        return;
     }
 
-    int64_t delay = nextDelayMs(hour, minute);
+    int64_t delay = nextDelayMs(timers);
+    if (delay < 0) {
+        ERROR(logger) << "meal reminder schedule failed, no valid send time";
+        return;
+    }
+
     timer_ = ioManager->addTimer(
         delay,
         [this]() {
@@ -157,34 +221,42 @@ void MealReminder::sendCard()
     }
 }
 
-int64_t MealReminder::nextDelayMs(int hour, int minute)
+int64_t MealReminder::nextDelayMs(const std::vector<int32_t>& timers)
 {
     constexpr uint64_t kDayMs = 24 * 3600 * 1000;
 
     auto nowSec = chen::TimeUtil::GetCurrentSec();
     auto dayStart = chen::TimeUtil::GetDayStart(nowSec);
-    uint64_t baseMs = chen::TimeUtil::UnixSecToMs(dayStart + hour * 3600 + minute * 60);
-    uint64_t nextMs = chen::TimeUtil::GetNextResetTime(baseMs, kDayMs);
-
-    // 跳过配置的星期，最多向后找 7 天
-    for (int i = 0; i < 7; ++i) {
-        time_t candidate = nextMs / 1000;
-        if (!IsSkipDay(candidate)) {
-            break;
-        }
-        nextMs += kDayMs;
-    }
-
-    if (IsSkipDay(nextMs / 1000)) {
-        WARN(logger) << "all weekdays are in meal_reminder.skip_weekdays, no valid send day";
-    }
-
     uint64_t nowMs = chen::TimeUtil::GetCurrentMs();
 
-    if (nextMs <= nowMs) {
-        return kDayMs;
+    uint64_t bestMs = 0;
+    for (int32_t secondsOfDay : timers) {
+        uint64_t baseMs = chen::TimeUtil::UnixSecToMs(dayStart + secondsOfDay);
+        uint64_t nextMs = chen::TimeUtil::GetNextResetTime(baseMs, kDayMs);
+
+        if (nextMs <= nowMs) {
+            nextMs += kDayMs;
+        }
+
+        // 跳过配置的星期，最多向后找 7 天
+        for (int i = 0; i < 7 && IsSkipDay(nextMs / 1000); ++i) {
+            nextMs += kDayMs;
+        }
+
+        if (IsSkipDay(nextMs / 1000)) {
+            WARN(logger) << "all weekdays are in meal_reminder.skip_weekdays, no valid send day";
+            continue;
+        }
+
+        if (bestMs == 0 || nextMs < bestMs) {
+            bestMs = nextMs;
+        }
     }
-    return static_cast<int64_t>(nextMs - nowMs);
+
+    if (bestMs == 0) {
+        return -1;
+    }
+    return bestMs - nowMs;
 }
 
 } // namespace bot
