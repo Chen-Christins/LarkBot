@@ -17,8 +17,7 @@ namespace bot {
 
 static chen::Logger::ptr logger = LOG_NAME("bot");
 
-static chen::ConfigVar<std::string>::ptr g_blog_rpc_address =
-    chen::Config::Lookup<std::string>("rpc_address.blog", "127.0.0.1:8092", "blog 后端 RPC 地址");
+static chen::ConfigVar<std::string>::ptr g_blog_rpc_address = chen::Config::Lookup<std::string>("rpc_address.blog", "", "blog 后端 RPC 地址");
 
 static chen::ConfigVar<bool>::ptr g_ai_review_enabled = chen::Config::Lookup<bool>("ai_review.enabled", false, "是否开启 AI Review");
 
@@ -26,12 +25,12 @@ static chen::ConfigVar<std::string>::ptr g_rd_bot = chen::Config::Lookup<std::st
 
 static void sendMessage(const Json::Value& cardJson)
 {
-    std::string name = g_rd_bot->getValue();
-    if (name.empty()) {
+    std::string bot_name = g_rd_bot->getValue();
+    if (bot_name.empty()) {
         WARN(logger) << "the rd notification bot is not config";
         return;
     }
-    FeishuBotMgr::GetInstance()->send(name, cardJson);
+    FeishuBotMgr::GetInstance()->send(bot_name, cardJson);
 }
 
 /// tagGithubPRInfo 转字符串（用于日志打印）
@@ -63,40 +62,48 @@ static void ForwardPRToBlog(const tagGithubPRInfo& info)
         ERROR(logger) << "blog.rpc_address not configured, skip forwarding PR #" << info.Number;
         return;
     }
-    chen::Scheduler::GetThis()->schedule([addr, info]() {
-        try {
-            auto client = chen::rpc::RpcClientPoolMgr::GetInstance()->getClient(addr);
-            ASSERT_RET(client);
+    try {
+        auto client = chen::rpc::RpcClientPoolMgr::GetInstance()->getClient(addr);
+        ASSERT_RET(client);
 
-            int32_t ret = client->call<int32_t>(SS_CMD_GET_GITHUB_PR_INFO, info);
+        client->callAsync<int32_t>(
+            SS_CMD_GET_GITHUB_PR_INFO,
+            [info](chen::rpc::RpcResult<int32_t> result) {
+                if (!result.ok()) {
+                    ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " RPC call failed: status=" << chen::rpc::StatusToString(result.status)
+                                  << " code=" << result.code << " error=" << result.error;
+                    return;
+                }
 
-            TRACE(logger) << "ForwardPRToBlog: " << InfoToString(info);
+                int32_t ret = result.value;
+                TRACE(logger) << "ForwardPRToBlog: " << InfoToString(info);
 
-            switch (ret) {
-            case 0:
-                INFO(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync success";
-                break;
-            case GITHUB_REPO_NOT_FOUND:
-                WARN(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, repo not found";
-                break;
-            case GITHUB_PR_NOT_FOUND:
-                ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.Number << " sync failed, pr not found";
-                break;
-            case GITHUB_DB_CONNECTION_FAILED:
-                ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, DB connection failed";
-                break;
-            case GITHUB_DB_OPERATION_FAILED:
-                ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, DB operation failed";
-                break;
-            case GITHUB_UNKNOWN_ERROR:
-            default:
-                ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, unknown error, ret=" << ret;
-                break;
-            }
-        } catch (std::exception& e) {
-            ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " RPC call failed: " << e.what();
-        }
-    });
+                switch (ret) {
+                case 0:
+                    INFO(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync success";
+                    break;
+                case GITHUB_REPO_NOT_FOUND:
+                    WARN(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, repo not found";
+                    break;
+                case GITHUB_PR_NOT_FOUND:
+                    ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, pr not found";
+                    break;
+                case GITHUB_DB_CONNECTION_FAILED:
+                    ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, DB connection failed";
+                    break;
+                case GITHUB_DB_OPERATION_FAILED:
+                    ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, DB operation failed";
+                    break;
+                case GITHUB_UNKNOWN_ERROR:
+                default:
+                    ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " sync failed, unknown error, ret=" << ret;
+                    break;
+                }
+            },
+            info);
+    } catch (const std::exception& e) {
+        ERROR(logger) << "ForwardPRToBlog: PR #" << info.Number << " RPC call failed: " << e.what();
+    }
 }
 
 /// 异步转发 PR Review 数据到 blog 后端
@@ -107,40 +114,49 @@ static void ForwardPRReviewToBlog(const tagGithubPRReviewInfo& info)
         ERROR(logger) << "blog.rpc_address not configured, skip forwarding review";
         return;
     }
-    chen::Scheduler::GetThis()->schedule([addr, info]() {
-        try {
-            auto client = chen::rpc::RpcClientPoolMgr::GetInstance()->getClient(addr);
-            ASSERT_RET(client);
+    try {
+        auto client = chen::rpc::RpcClientPoolMgr::GetInstance()->getClient(addr);
+        ASSERT_RET(client);
 
-            int32_t ret = client->call<int32_t>(SS_CMD_GET_GITHUB_PR_REVIEW_INFO, info);
+        client->callAsync<int32_t>(
+            SS_CMD_GET_GITHUB_PR_REVIEW_INFO,
+            [info](chen::rpc::RpcResult<int32_t> result) {
+                if (!result.ok()) {
+                    ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber
+                                  << " RPC call failed: status=" << chen::rpc::StatusToString(result.status) << " code=" << result.code
+                                  << " error=" << result.error;
+                    return;
+                }
 
-            TRACE(logger) << "ForwardPRReviewToBlog: " << ReviewInfoToString(info);
+                int32_t ret = result.value;
+                TRACE(logger) << "ForwardPRReviewToBlog: " << ReviewInfoToString(info);
 
-            switch (ret) {
-            case 0:
-                INFO(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " review sync success";
-                break;
-            case GITHUB_REPO_NOT_FOUND:
-                WARN(logger) << "ForwardPRToBlog: PR #" << info.PRNumber << " sync failed, repo not found";
-                break;
-            case GITHUB_PR_NOT_FOUND:
-                ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, pr not found";
-                break;
-            case GITHUB_DB_CONNECTION_FAILED:
-                ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, DB connection failed";
-                break;
-            case GITHUB_DB_OPERATION_FAILED:
-                ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, DB operation failed";
-                break;
-            case GITHUB_UNKNOWN_ERROR:
-            default:
-                ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, unknown error, ret=" << ret;
-                break;
-            }
-        } catch (std::exception& e) {
-            ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " RPC call failed: " << e.what();
-        }
-    });
+                switch (ret) {
+                case 0:
+                    INFO(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " review sync success";
+                    break;
+                case GITHUB_REPO_NOT_FOUND:
+                    WARN(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, repo not found";
+                    break;
+                case GITHUB_PR_NOT_FOUND:
+                    ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, pr not found";
+                    break;
+                case GITHUB_DB_CONNECTION_FAILED:
+                    ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, DB connection failed";
+                    break;
+                case GITHUB_DB_OPERATION_FAILED:
+                    ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, DB operation failed";
+                    break;
+                case GITHUB_UNKNOWN_ERROR:
+                default:
+                    ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " sync failed, unknown error, ret=" << ret;
+                    break;
+                }
+            },
+            info);
+    } catch (const std::exception& e) {
+        ERROR(logger) << "ForwardPRReviewToBlog: PR #" << info.PRNumber << " RPC call failed: " << e.what();
+    }
 }
 
 GithubWebHook::GithubWebHook()
