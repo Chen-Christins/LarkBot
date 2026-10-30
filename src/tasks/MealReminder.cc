@@ -69,9 +69,7 @@ static void LoadTimers(std::set<int32_t>& timers)
             WARN(logger) << "invalid meal_reminder.timers item: " << item << ", expected HH:MM";
             continue;
         }
-        if (std::find(timers.begin(), timers.end(), secondsOfDay) == timers.end()) {
-            timers.insert(secondsOfDay);
-        }
+        timers.insert(secondsOfDay);
     }
 }
 
@@ -82,7 +80,7 @@ static bool IsWorkingDay(uint64_t time_ms)
     std::string key = g_app_key->getValue();
     url = url + "?appKey=" + key;
 
-    std::string day = chen::TimeUtil::Time2Str(time_ms / 1000, "%Y-%m-%d");
+    std::string day = chen::TimeUtil::Time2Str(time_ms, "%Y-%m-%d");
     url = url + "&day=" + day;
 
     std::map<std::string, std::string> headers = {
@@ -214,7 +212,7 @@ void MealReminder::scheduleNext()
         false);
 
     INFO(logger) << "next meal reminder in " << delay_ms / 1000 << " seconds, "
-                 << "time is " << chen::TimeUtil::Time2Str(chen::TimeUtil::GetCurrentSec() + delay_ms / 1000);
+                 << "time is " << chen::TimeUtil::Time2Str(chen::TimeUtil::GetCurrentMs() + delay_ms);
 }
 
 void MealReminder::sendCard()
