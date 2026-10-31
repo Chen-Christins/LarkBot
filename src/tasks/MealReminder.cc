@@ -80,7 +80,7 @@ static bool IsWorkingDay(uint64_t time_ms)
     std::string key = g_app_key->getValue();
     url = url + "?appKey=" + key;
 
-    std::string day = chen::TimeUtil::Time2Str(time_ms, "%Y-%m-%d");
+    std::string day = chen::TimeUtil::Time2StrMs(time_ms, "%Y-%m-%d");
     url = url + "&day=" + day;
 
     std::map<std::string, std::string> headers = {
@@ -212,7 +212,7 @@ void MealReminder::scheduleNext()
         false);
 
     INFO(logger) << "next meal reminder in " << delay_ms / 1000 << " seconds, "
-                 << "time is " << chen::TimeUtil::Time2Str(chen::TimeUtil::GetCurrentMs() + delay_ms);
+                 << "time is " << chen::TimeUtil::Time2StrMs(chen::TimeUtil::GetCurrentMs() + delay_ms);
 }
 
 void MealReminder::sendCard()
@@ -251,7 +251,7 @@ int64_t MealReminder::NextDelayMs(const std::set<int32_t>& timers)
     uint64_t best_ms = 0;
     for (int32_t secondsOfDay : timers) {
         uint64_t base_ms = chen::TimeUtil::UnixSecToMs(day_start_sec + secondsOfDay);
-        uint64_t next_ms = chen::TimeUtil::GetNextResetTime(base_ms, kDayMs);
+        uint64_t next_ms = chen::TimeUtil::GetNextResetTimeMs(base_ms, kDayMs);
 
         if (next_ms <= now_ms) {
             next_ms += kDayMs;
