@@ -202,6 +202,7 @@ void MealReminder::scheduleNext()
             // check whether tomorrow is a working day
             uint64_t next_ms = chen::TimeUtil::GetCurrentMs() + kDayMs;
             if (!IsWorkingDay(next_ms)) {
+                INFO(logger) << "meal reminder skipped, because next day is holiday";
                 scheduleNext();
                 return;
             }
