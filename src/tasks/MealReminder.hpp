@@ -11,8 +11,6 @@
 #include <chen/util/singleton.h>
 
 #include <atomic>
-#include <cstdint>
-#include <vector>
 
 namespace bot {
 
@@ -55,7 +53,7 @@ private:
      * @param timers 当天秒偏移列表（已排序去重）
      * @return int64_t 距下一次发送的毫秒数，无有效时间返回 -1
      */
-    static int64_t nextDelayMs(const std::vector<int32_t>& timers);
+    static int64_t NextDelayMs(const std::set<int32_t>& timers);
 
 private:
     chen::Timer::ptr timer_;

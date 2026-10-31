@@ -21,9 +21,9 @@ feishu:
 # 每日点餐提醒
 meal_reminder:
   enabled: true
-  timers: [ "18:00" ]            # 每天发送的时间点列表，格式 HH:MM，可配置多个
-  skip_weekdays: [ 5, 6 ]        # 周一=1 ... 周日=7，周五、周六不发送
-  test_on_startup: true        # 启动后立即发一次，方便测试；正式环境改为 false
+  timers: [ "18:00" ]          # 每天发送的时间点列表，格式 HH:MM，可配置多个
+  app_key: ""
+  test_on_startup: false        # 启动后立即发一次，方便测试；正式环境改为 false
   bot: "InkStackBot"           # 测试用；正式环境改成 MealBot
 
 # blog 后端 RPC 服务地址，用于转发 GitHub webhook 数据
