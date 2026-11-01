@@ -151,7 +151,7 @@ case "$MODE" in
         [ -d "$tmp/module" ] || die "产物内没有 module/ 目录"
         log "热更新模块: $tmp/module/*.so -> $DEPLOY_PATH/module/"
         mkdir -p "$DEPLOY_PATH/module"
-        cp -a "$tmp"/module/*.so "$DEPLOY_PATH/module/"
+        mv "$tmp"/module/*.so "$DEPLOY_PATH/module/"
         server="$(server_bin)"
         log "热重载: $server -s reload"
         ( cd "$DEPLOY_PATH" && "$server" -s reload )

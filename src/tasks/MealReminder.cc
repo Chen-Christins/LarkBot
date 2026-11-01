@@ -92,7 +92,7 @@ static bool IsWorkingDay(uint64_t time_ms)
 
     ASSERT_RET(result, false);
 
-    static constexpr int kWorkDayType = 1;
+    static constexpr std::string kWorkDayType = "1";
     if (result->response) {
         std::string body = result->response->getBody();
 
@@ -100,7 +100,7 @@ static bool IsWorkingDay(uint64_t time_ms)
 
         Json::Value json_body;
         if (chen::JsonUtil::FromString(json_body, body)) {
-            if (json_body["type"].asInt() == kWorkDayType) {
+            if (json_body["showapi_res_body"]["type"].asString() == kWorkDayType) {
                 return true;
             }
         }
@@ -149,7 +149,12 @@ void MealReminder::start()
     INFO(logger) << "meal reminder started, send at " << chen::StringUtil::Join(timerTexts, ", ");
 
     if (g_meal_test_on_startup->getValue()) {
-        sendCard();
+        uint64_t next_ms = chen::TimeUtil::GetCurrentMs() + kDayMs;
+        if (IsWorkingDay(next_ms)) {
+            sendCard();
+        } else {
+            INFO(logger) << "meal reminder skipped, because next day is holiday";
+        }
     }
 
     scheduleNext();

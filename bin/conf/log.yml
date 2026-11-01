@@ -22,7 +22,7 @@ logs:
         file: /home/chen/workspace/LarkBot/logs/access.log
       - type: StdoutLogAppender
   - name: bot
-    level: info
+    level: trace
     formatter: "[%d{%Y-%m-%d %H:%M:%S.%f}]%T%t%T%N%T[%p]%T[%c]%T%f:%l%T%m%n"
     appenders:
       - type: FileLogAppender
