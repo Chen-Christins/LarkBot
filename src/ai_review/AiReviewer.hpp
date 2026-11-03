@@ -84,7 +84,7 @@ public:
     {
         YAML::Node node = YAML::Load(v);
         bot::AiReviewConf conf;
-        conf.enabled = node["enabled"].as<bool>(conf.enabled);
+        conf.enabled = chen::LexicalCast<std::string, bool>()(node["enabled"].Scalar());
         conf.provider = node["provider"].as<std::string>(conf.provider);
         conf.api_key = node["api_key"].as<std::string>(conf.api_key);
         conf.api_url = node["api_url"].as<std::string>(conf.api_url);
