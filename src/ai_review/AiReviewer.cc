@@ -2,7 +2,6 @@
 
 #include "../ai/AIProvider.hpp"
 
-#include <chen/config/config.h>
 #include <chen/http/http_connection.h>
 #include <chen/iomanager/iomanager.h>
 #include <chen/log/log.h>
@@ -16,26 +15,14 @@ namespace bot {
 
 static chen::Logger::ptr logger = LOG_NAME("bot");
 
-static chen::ConfigVar<std::string>::ptr g_github_app_id = chen::Config::Lookup<std::string>("github.app_id", "", "GitHub App ID");
-static chen::ConfigVar<std::string>::ptr g_ai_model = chen::Config::Lookup<std::string>("ai_review.model", "gpt-4o", "AI 模型名");
-static chen::ConfigVar<int32_t>::ptr g_ai_max_tokens = chen::Config::Lookup<int32_t>("ai_review.max_tokens", 4096, "AI 最大输出 token");
+static chen::ConfigVar<GithubAppConf>::ptr g_github_conf = chen::Config::Lookup<GithubAppConf>("github", GithubAppConf{}, "GitHub App 配置");
 
-static chen::ConfigVar<std::string>::ptr g_github_private_key_path =
-    chen::Config::Lookup<std::string>("github.private_key_path", "", "GitHub App 私钥文件路径");
+static chen::ConfigVar<AiReviewConf>::ptr g_ai_review_conf = chen::Config::Lookup<AiReviewConf>("ai_review", AiReviewConf{}, "AI Review 配置");
 
-static chen::ConfigVar<std::string>::ptr g_ai_provider =
-    chen::Config::Lookup<std::string>("ai_review.provider", "openai", "AI 厂商: openai / claude");
-
-static chen::ConfigVar<std::string>::ptr g_ai_api_key = chen::Config::Lookup<std::string>("ai_review.api_key", "", "AI API Key");
-
-static chen::ConfigVar<std::string>::ptr g_ai_api_url =
-    chen::Config::Lookup<std::string>("ai_review.api_url", "https://api.openai.com/v1", "AI API 基础地址");
-
-static chen::ConfigVar<std::string>::ptr g_ai_review_trigger =
-    chen::Config::Lookup<std::string>("ai_review.review_trigger", "opened,synchronize", "触发 review 的 PR action 列表");
-
-static chen::ConfigVar<std::string>::ptr g_ai_review_comment_mode =
-    chen::Config::Lookup<std::string>("ai_review.review_comment_mode", "update", "评论模式: update(增量) / append(每次新评论)");
+AiReviewConf AiReviewer::config()
+{
+    return g_ai_review_conf->getValue();
+}
 
 std::string AiReviewer::generateJWT(const std::string& appId, const std::string& privateKeyPath)
 {
@@ -61,10 +48,10 @@ std::string AiReviewer::generateJWT(const std::string& appId, const std::string&
     header["typ"] = "JWT";
 
     // 构建 JWT payload: {"iat":now,"exp":now+600,"iss":appId}
-    int64_t now = static_cast<int64_t>(time(nullptr));
+    int64_t now = chen::TimeUtil::GetCurrentSec();
     Json::Value payload;
-    payload["iat"] = static_cast<Json::Value::Int64>(now);
-    payload["exp"] = static_cast<Json::Value::Int64>(now + 600);
+    payload["iat"] = now;
+    payload["exp"] = now + 600;
     payload["iss"] = appId;
 
     std::string headerB64 = chen::StringUtil::Base64UrlEncode(chen::JsonUtil::ToString(header));
@@ -328,7 +315,7 @@ void AiReviewer::postReviewComment(
     int prNumber,
     const std::string& review)
 {
-    std::string mode = g_ai_review_comment_mode->getValue();
+    std::string mode = g_ai_review_conf->getValue().review_comment_mode;
 
     Json::Value body;
     body["body"] = review;
@@ -420,11 +407,12 @@ std::string AiReviewer::callAIReview(
     const std::string& repoName,
     int prNumber)
 {
-    std::string providerType = g_ai_provider->getValue();
-    std::string apiKey = g_ai_api_key->getValue();
-    std::string apiUrl = g_ai_api_url->getValue();
-    std::string model = g_ai_model->getValue();
-    int32_t maxTokens = g_ai_max_tokens->getValue();
+    auto conf = g_ai_review_conf->getValue();
+    std::string providerType = conf.provider;
+    std::string apiKey = conf.api_key;
+    std::string apiUrl = conf.api_url;
+    std::string model = conf.model;
+    int32_t maxTokens = conf.max_tokens;
 
     if (apiKey.empty()) {
         ERROR(logger) << "callAIReview: ai_review.api_key is not configured";
@@ -527,7 +515,7 @@ void AiReviewer::reviewPullRequest(const Json::Value& payload)
     std::string action = payload.get("action", "").asString();
 
     // 检查是否在触发列表中
-    std::string triggerStr = g_ai_review_trigger->getValue();
+    std::string triggerStr = g_ai_review_conf->getValue().review_trigger;
     if (triggerStr.empty()) {
         INFO(logger) << "reviewPullRequest: review_trigger is empty, skip";
         return;
@@ -578,23 +566,24 @@ void AiReviewer::reviewPullRequest(const Json::Value& payload)
         INFO(logger) << "AI review started for " << owner << "/" << repoName << " PR #" << number;
 
         // 1. 生成 JWT
-        std::string appId = g_github_app_id->getValue();
-        std::string privateKeyPath = g_github_private_key_path->getValue();
-        std::string jwt = AiReviewer::generateJWT(appId, privateKeyPath);
+        auto githubConf = g_github_conf->getValue();
+        std::string appId = githubConf.app_id;
+        std::string privateKeyPath = githubConf.private_key_path;
+        std::string jwt = generateJWT(appId, privateKeyPath);
         if (jwt.empty()) {
             ERROR(logger) << "PR #" << number << ": failed to generate JWT, skip review";
             return;
         }
 
         // 2. 换取 Installation Token
-        std::string token = AiReviewer::getInstallationToken(jwt, installationId);
+        std::string token = getInstallationToken(jwt, installationId);
         if (token.empty()) {
             ERROR(logger) << "PR #" << number << ": failed to get installation token, skip review";
             return;
         }
 
         // 3. 获取 PR Diff
-        std::string diff = AiReviewer::getPRDiff(token, owner, repoName, number);
+        std::string diff = getPRDiff(token, owner, repoName, number);
         if (diff.empty()) {
             ERROR(logger) << "PR #" << number << ": failed to get PR diff, skip review";
             return;
@@ -609,7 +598,7 @@ void AiReviewer::reviewPullRequest(const Json::Value& payload)
         }
 
         // 4. 调用 AI 审查
-        std::string review = AiReviewer::callAIReview(diff, title, body, owner + "/" + repoName, number);
+        std::string review = callAIReview(diff, title, body, owner + "/" + repoName, number);
         if (review.empty()) {
             // callAIReview 内部已记录错误
             return;
@@ -625,7 +614,7 @@ void AiReviewer::reviewPullRequest(const Json::Value& payload)
                 << "> ⚡ 由 AI 自动生成，仅供参考。请人工复核后再合并。\n";
 
         // 5. 发表评论
-        AiReviewer::postReviewComment(token, owner, repoName, number, comment.str());
+        postReviewComment(token, owner, repoName, number, comment.str());
 
         // 6. 更新 PR 描述追加摘要
         updatePRSummary(token, owner, repoName, number, review);

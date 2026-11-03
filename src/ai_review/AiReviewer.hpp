@@ -8,15 +8,126 @@
 #pragma once
 
 #include <memory>
+#include <sstream>
 #include <string>
 
+#include <chen/config/config.h>
 #include <chen/util/json_util.h>
+
+namespace bot {
+
+/**
+ * @brief GitHub App 配置，对应 github.*
+ */
+struct GithubAppConf {
+    std::string app_id;
+    std::string private_key_path;
+
+    bool operator==(const GithubAppConf& other) const { return app_id == other.app_id && private_key_path == other.private_key_path; }
+};
+
+/**
+ * @brief AI Review 配置，对应 ai_review.*
+ */
+struct AiReviewConf {
+    bool enabled = false;
+    std::string provider = "openai";
+    std::string api_key;
+    std::string api_url = "https://api.openai.com/v1";
+    std::string model = "gpt-4o";
+    int32_t max_tokens = 4096;
+    std::string review_trigger = "opened,synchronize";
+    std::string review_comment_mode = "update";
+
+    bool operator==(const AiReviewConf& other) const
+    {
+        return enabled == other.enabled && provider == other.provider && api_key == other.api_key && api_url == other.api_url && model == other.model
+            && max_tokens == other.max_tokens && review_trigger == other.review_trigger && review_comment_mode == other.review_comment_mode;
+    }
+};
+
+} // namespace bot
+
+namespace chen {
+
+template <>
+class LexicalCast<std::string, bot::GithubAppConf> {
+public:
+    bot::GithubAppConf operator()(const std::string& v)
+    {
+        YAML::Node node = YAML::Load(v);
+        bot::GithubAppConf conf;
+        conf.app_id = node["app_id"].as<std::string>(conf.app_id);
+        conf.private_key_path = node["private_key_path"].as<std::string>(conf.private_key_path);
+        return conf;
+    }
+};
+
+template <>
+class LexicalCast<bot::GithubAppConf, std::string> {
+public:
+    std::string operator()(const bot::GithubAppConf& conf)
+    {
+        YAML::Node node;
+        node["app_id"] = conf.app_id;
+        node["private_key_path"] = conf.private_key_path;
+        std::stringstream ss;
+        ss << node;
+        return ss.str();
+    }
+};
+
+template <>
+class LexicalCast<std::string, bot::AiReviewConf> {
+public:
+    bot::AiReviewConf operator()(const std::string& v)
+    {
+        YAML::Node node = YAML::Load(v);
+        bot::AiReviewConf conf;
+        conf.enabled = chen::LexicalCast<std::string, bool>()(node["enabled"].Scalar());
+        conf.provider = node["provider"].as<std::string>(conf.provider);
+        conf.api_key = node["api_key"].as<std::string>(conf.api_key);
+        conf.api_url = node["api_url"].as<std::string>(conf.api_url);
+        conf.model = node["model"].as<std::string>(conf.model);
+        conf.max_tokens = node["max_tokens"].as<int32_t>(conf.max_tokens);
+        conf.review_trigger = node["review_trigger"].as<std::string>(conf.review_trigger);
+        conf.review_comment_mode = node["review_comment_mode"].as<std::string>(conf.review_comment_mode);
+        return conf;
+    }
+};
+
+template <>
+class LexicalCast<bot::AiReviewConf, std::string> {
+public:
+    std::string operator()(const bot::AiReviewConf& conf)
+    {
+        YAML::Node node;
+        node["enabled"] = conf.enabled;
+        node["provider"] = conf.provider;
+        node["api_key"] = conf.api_key;
+        node["api_url"] = conf.api_url;
+        node["model"] = conf.model;
+        node["max_tokens"] = conf.max_tokens;
+        node["review_trigger"] = conf.review_trigger;
+        node["review_comment_mode"] = conf.review_comment_mode;
+        std::stringstream ss;
+        ss << node;
+        return ss.str();
+    }
+};
+
+} // namespace chen
 
 namespace bot {
 
 class AiReviewer {
 public:
     typedef std::shared_ptr<AiReviewer> ptr;
+
+    /**
+     * @brief 获取当前 AI Review 配置（每次从 ConfigVar 读取，支持热更新）
+     */
+    static AiReviewConf config();
 
     /**
      * @brief 对 PR 执行 AI 审查（异步，调度到 IOManager）

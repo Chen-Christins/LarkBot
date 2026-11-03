@@ -66,9 +66,6 @@ void SendHttp(const FeishuBot::ptr& bot, const Json::Value& payload)
                 if (response.isMember("code")) {
                     code = response["code"].asInt();
                     message = response.get("msg", "").asString();
-                } else if (response.isMember("StatusCode")) {
-                    code = response["StatusCode"].asInt();
-                    message = response.get("StatusMessage", "").asString();
                 }
             } else if (!responseBody.empty()) {
                 WARN(logger) << "send feishu message response is not json, bot=" << bot->name << " body=" << responseBody;
@@ -77,7 +74,7 @@ void SendHttp(const FeishuBot::ptr& bot, const Json::Value& payload)
 
         if (code != 0) {
             ERROR(logger) << "send feishu message failed, bot=" << bot->name << " code=" << code << " message=" << message;
-            return;
+            continue;
         }
 
         INFO(logger) << "send feishu message success, bot=" << bot->name;

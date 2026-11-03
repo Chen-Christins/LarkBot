@@ -19,8 +19,6 @@ static chen::Logger::ptr logger = LOG_NAME("bot");
 
 static chen::ConfigVar<std::string>::ptr g_blog_rpc_address = chen::Config::Lookup<std::string>("rpc_address.blog", "", "blog 后端 RPC 地址");
 
-static chen::ConfigVar<bool>::ptr g_ai_review_enabled = chen::Config::Lookup<bool>("ai_review.enabled", false, "是否开启 AI Review");
-
 static chen::ConfigVar<std::string>::ptr g_rd_bot = chen::Config::Lookup<std::string>("rd.notify_bot", "", "rd 平台机器人 名称");
 
 static void sendMessage(const Json::Value& cardJson)
@@ -471,7 +469,7 @@ bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::p
     INFO(logger) << "pull_request event: " << repoName << " #" << number << " action=" << action << " " << headRef << "->" << baseRef;
 
     // 如果开启了，则异步触发 AI 代码审查
-    if (g_ai_review_enabled->getValue()) {
+    if (AiReviewer::config().enabled) {
         AiReviewer::reviewPullRequest(payload);
     }
 
