@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - ci/*
+      - master
     tags:
       - 'v*'
 
