@@ -35,11 +35,7 @@ bool ShouldRetry(const FeishuBot::ptr& bot, int attempt, const chen::http::HttpR
 
     if (ret->result != static_cast<int>(chen::http::HttpResult::Error::OK)) {
         // 只对临时性错误重试
-        bool retryable = ret->result == static_cast<int>(chen::http::HttpResult::Error::TIMEOUT)
-            || ret->result == static_cast<int>(chen::http::HttpResult::Error::CONNECT_FAIL)
-            || ret->result == static_cast<int>(chen::http::HttpResult::Error::SEND_CLOSE_BY_PEER)
-            || ret->result == static_cast<int>(chen::http::HttpResult::Error::SEND_SOCKET_ERROR);
-        if (!retryable) {
+        if (!IsRetryableHttpError(ret->result)) {
             ERROR(logger) << "send feishu message failed, bot=" << bot->name << " non-retryable error, data=" << ret->toString();
             return false;
         }

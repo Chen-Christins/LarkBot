@@ -31,13 +31,13 @@ public:
      * @brief 协议内容转换为字符串
      * @return std::string
      */
-    virtual std::string toString() const = 0;
+    virtual std::string toString() const;
 
     /**
      * @brief 获取协议数据
      * @param value 输出参数，协议数据以Json格式返回
      */
-    virtual void getData(Json::Value& value) const = 0;
+    virtual void getData(Json::Value& value) const;
 
 protected:
     // 协议数据，具体内容由子类实现决定

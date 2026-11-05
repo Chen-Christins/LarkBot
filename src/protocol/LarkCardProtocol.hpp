@@ -17,10 +17,6 @@ public:
 
     virtual void build() override;
 
-    virtual std::string toString() const override;
-
-    virtual void getData(Json::Value& value) const override;
-
     // 设置卡片头部
     void setHeader(
         const std::string& title,

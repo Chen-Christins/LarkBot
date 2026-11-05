@@ -1,5 +1,6 @@
 #include "Utils.hpp"
 
+#include <chen/http/http_connection.h>
 #include <chen/http/uri.h>
 #include <chen/util/string_util.h>
 
@@ -32,6 +33,30 @@ bool IsValidIdentifier(const std::string& value)
             return false;
         }
     }
+    return true;
+}
+
+bool IsRetryableHttpError(int result)
+{
+    switch (static_cast<chen::http::HttpResult::Error>(result)) {
+    case chen::http::HttpResult::Error::TIMEOUT:
+    case chen::http::HttpResult::Error::CONNECT_FAIL:
+    case chen::http::HttpResult::Error::SEND_CLOSE_BY_PEER:
+    case chen::http::HttpResult::Error::SEND_SOCKET_ERROR:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool ParseRepoFullName(const std::string& fullName, std::string& owner, std::string& repo)
+{
+    auto parts = chen::StringUtil::Split(fullName, '/');
+    if (parts.size() != 2) {
+        return false;
+    }
+    owner = parts[0];
+    repo = parts[1];
     return true;
 }
 

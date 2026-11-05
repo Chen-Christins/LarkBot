@@ -6,7 +6,6 @@ static chen::Logger::ptr logger = LOG_NAME("bot");
 int main(int argc, char** argv)
 {
     try {
-        srand(time(0));
         chen::Application app;
         if (app.init(argc, argv)) {
             app.run();

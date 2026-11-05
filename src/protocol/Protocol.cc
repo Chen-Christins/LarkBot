@@ -9,6 +9,21 @@ void Protocol::build()
     // 消息签名由 FeishuBotManager 在发送时按目标机器人的 secret 注入
 }
 
+std::string Protocol::toString() const
+{
+    Json::Value value;
+    getData(value);
+    return chen::JsonUtil::ToString(value);
+}
+
+void Protocol::getData(Json::Value& value) const
+{
+    if (data_.empty()) {
+        const_cast<Protocol*>(this)->build();
+    }
+    value = data_;
+}
+
 void ProtocolManager::registerProtocol(const std::string& name, Protocol::ptr protocol)
 {
     std::unique_lock lock(mutex_);

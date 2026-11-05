@@ -3,6 +3,8 @@
 #include <chen/application.h>
 #include <chen/log/log.h>
 
+#include <memory>
+
 #include "./servlets/GithubWebHook.hpp"
 #include "./tasks/MealReminder.hpp"
 
@@ -92,11 +94,7 @@ void BotModule::registerServlets(std::vector<chen::http::HttpServer::ptr>& serve
 
     for (auto& hs : servers) {
         auto dp = hs->getServletDispatch();
-
-#define XX(clazz) chen::http::Servlet::ptr(new clazz)
-        dp->addServlet("/api/v1/github_webhook", XX(GithubWebHook));
-
-#undef XX
+        dp->addServlet("/api/v1/github_webhook", std::make_shared<GithubWebHook>());
     }
 }
 

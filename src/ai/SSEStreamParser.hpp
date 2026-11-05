@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 
+#include <chen/http/sse_client.h>
 #include <chen/http/sse_session.h>
 
 #include "AIProvider.hpp"
@@ -32,12 +33,11 @@ public:
     std::string full_text;
 
 private:
-    void processEvent();
+    void processEvent(const std::string& data);
 
     chen::http::SSESession::ptr session_;
     AIProvider::ptr provider_;
-    std::string line_buf_;
-    std::string current_event_;
+    chen::http::SSEClient sse_client_;
 };
 
 } // namespace ai

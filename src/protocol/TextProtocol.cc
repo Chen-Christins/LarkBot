@@ -14,19 +14,6 @@ void TextProtocol::build()
     data_["content"]["text"] = text_;
 }
 
-std::string TextProtocol::toString() const
-{
-    return chen::JsonUtil::ToString(data_);
-}
-
-void TextProtocol::getData(Json::Value& value) const
-{
-    if (data_.empty()) {
-        const_cast<TextProtocol*>(this)->build();
-    }
-    value = data_;
-}
-
 void TextProtocol::setText(const std::string& text)
 {
     text_ = text;

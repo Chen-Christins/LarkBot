@@ -1,10 +1,11 @@
 #include "AIReviewer.hpp"
 
 #include "../ai/AIProvider.hpp"
+#include "../Utils.hpp"
 
 #include <chen/http/http_client.h>
+#include <chen/iomanager/iomanager.h>
 #include <chen/log/log.h>
-#include <chen/schedule/schedule.h>
 #include <chen/util/encryptor_util.h>
 #include <chen/util/util.h>
 
@@ -71,7 +72,7 @@ std::string AIReviewer::GenerateJWT(const std::string& appId, const std::string&
 static const char* kGithubApiBase = "https://api.github.com";
 
 /// 执行一次 GitHub API 请求（带重试），返回响应 body
-static std::string GithubApiCall(
+static std::string GithubAPICall(
     const std::string& method,
     const std::string& url,
     const std::string& token,
@@ -109,10 +110,7 @@ static std::string GithubApiCall(
             continue;
         }
         // 只对临时性错误重试
-        if (ret->result != static_cast<int>(chen::http::HttpResult::Error::TIMEOUT)
-            && ret->result != static_cast<int>(chen::http::HttpResult::Error::CONNECT_FAIL)
-            && ret->result != static_cast<int>(chen::http::HttpResult::Error::SEND_CLOSE_BY_PEER)
-            && ret->result != static_cast<int>(chen::http::HttpResult::Error::SEND_SOCKET_ERROR)) {
+        if (!IsRetryableHttpError(ret->result)) {
             ERROR(logger) << "GitHub API request failed, non-retryable, url=" << url << " result=" << ret->result << " body=" << ret->toString();
             return "";
         }
@@ -126,7 +124,7 @@ std::string AIReviewer::GetInstallationToken(const std::string& jwt, int64_t ins
 {
     std::string url = std::string(kGithubApiBase) + "/app/installations/" + std::to_string(installationId) + "/access_tokens";
 
-    std::string resp = GithubApiCall("POST", url, jwt, "", 30000);
+    std::string resp = GithubAPICall("POST", url, jwt, "", 30000);
     if (resp.empty()) {
         return "";
     }
@@ -216,12 +214,8 @@ static std::string ExtractSummaryFromReview(const std::string& review)
     if (end == std::string::npos) {
         return review.substr(start);
     }
-    std::string summary = review.substr(start, end - start);
     // 去掉首尾空白
-    while (!summary.empty() && (summary.back() == ' ' || summary.back() == '\n' || summary.back() == '\r')) {
-        summary.pop_back();
-    }
-    return summary;
+    return chen::StringUtil::Trim(review.substr(start, end - start));
 }
 
 /// 更新 PR 描述，追加/刷新 AI 摘要
@@ -229,7 +223,7 @@ static void UpdatePRSummary(const std::string& token, const std::string& owner, 
 {
     // 获取当前 PR 描述
     std::string url = std::string(kGithubApiBase) + "/repos/" + owner + "/" + repo + "/pulls/" + std::to_string(prNumber);
-    std::string resp = GithubApiCall("GET", url, token, "", 30000);
+    std::string resp = GithubAPICall("GET", url, token, "", 30000);
     if (resp.empty()) {
         ERROR(logger) << "updatePRSummary: failed to get PR #" << prNumber;
         return;
@@ -258,17 +252,7 @@ static void UpdatePRSummary(const std::string& token, const std::string& owner, 
     } else {
         newBody = currentBody;
     }
-    // 统一清理尾部空白和旧格式的 ---
-    while (!newBody.empty()) {
-        char c = newBody.back();
-        if (c == ' ' || c == '\n' || c == '\r') {
-            newBody.pop_back();
-        } else if (newBody.size() >= 3 && newBody.substr(newBody.size() - 3) == "---") {
-            newBody.resize(newBody.size() - 3);
-        } else {
-            break;
-        }
-    }
+    newBody = chen::StringUtil::TrimRight(newBody, " \n\r\t");
     if (!newBody.empty()) {
         newBody += "\n";
     }
@@ -277,7 +261,7 @@ static void UpdatePRSummary(const std::string& token, const std::string& owner, 
     Json::Value patchBody;
     patchBody["body"] = newBody;
     std::string bodyStr = chen::JsonUtil::ToString(patchBody);
-    resp = GithubApiCall("PATCH", url, token, bodyStr, 30000);
+    resp = GithubAPICall("PATCH", url, token, bodyStr, 30000);
     if (resp.empty()) {
         ERROR(logger) << "updatePRSummary: failed to update PR #" << prNumber;
         return;
@@ -290,7 +274,7 @@ static int64_t FindExistingReviewComment(const std::string& token, const std::st
 {
     std::string url = std::string(kGithubApiBase) + "/repos/" + owner + "/" + repo + "/issues/" + std::to_string(prNumber) + "/comments";
 
-    std::string resp = GithubApiCall("GET", url, token, "", 30000);
+    std::string resp = GithubAPICall("GET", url, token, "", 30000);
     if (resp.empty()) {
         return -1;
     }
@@ -327,7 +311,7 @@ void AIReviewer::PostReviewComment(
         int64_t commentId = FindExistingReviewComment(token, owner, repo, prNumber);
         if (commentId > 0) {
             std::string url = std::string(kGithubApiBase) + "/repos/" + owner + "/" + repo + "/issues/comments/" + std::to_string(commentId);
-            std::string resp = GithubApiCall("PATCH", url, token, bodyStr, 30000);
+            std::string resp = GithubAPICall("PATCH", url, token, bodyStr, 30000);
             if (resp.empty()) {
                 ERROR(logger) << "postReviewComment: failed to update comment " << commentId << " for PR #" << prNumber;
                 return;
@@ -341,7 +325,7 @@ void AIReviewer::PostReviewComment(
 
     // append 模式或 update 模式未找到已有评论：新建
     std::string url = std::string(kGithubApiBase) + "/repos/" + owner + "/" + repo + "/issues/" + std::to_string(prNumber) + "/comments";
-    std::string resp = GithubApiCall("POST", url, token, bodyStr, 30000);
+    std::string resp = GithubAPICall("POST", url, token, bodyStr, 30000);
     if (resp.empty()) {
         ERROR(logger) << "postReviewComment: failed to post comment for PR #" << prNumber;
         return;
@@ -447,11 +431,7 @@ std::string AIReviewer::CallAIReview(
     for (int attempt = 1; attempt <= kAiMaxRetries; ++attempt) {
         auto ret = chen::http::HttpClient::post(endpoint, 120000, headers, requestBody).get();
         if (!ret || ret->result != static_cast<int>(chen::http::HttpResult::Error::OK)) {
-            if (!ret
-                || (ret->result != static_cast<int>(chen::http::HttpResult::Error::TIMEOUT)
-                    && ret->result != static_cast<int>(chen::http::HttpResult::Error::CONNECT_FAIL)
-                    && ret->result != static_cast<int>(chen::http::HttpResult::Error::SEND_CLOSE_BY_PEER)
-                    && ret->result != static_cast<int>(chen::http::HttpResult::Error::SEND_SOCKET_ERROR))) {
+            if (!ret || !IsRetryableHttpError(ret->result)) {
                 std::string errInfo = ret ? ret->toString() : "null";
                 ERROR(logger) << "callAIReview: request failed, non-retryable, result=" << (ret ? std::to_string(ret->result) : "null")
                               << " body=" << errInfo;
@@ -523,13 +503,8 @@ void AIReviewer::ReviewPullRequest(const Json::Value& payload)
     }
     // 解析 trigger list
     bool shouldReview = false;
-    std::istringstream iss(triggerStr);
-    std::string token;
-    while (std::getline(iss, token, ',')) {
-        // 去除空白
-        token.erase(0, token.find_first_not_of(" \t"));
-        token.erase(token.find_last_not_of(" \t") + 1);
-        if (token == action) {
+    for (const auto& token : chen::StringUtil::Split(triggerStr, ',')) {
+        if (chen::StringUtil::Trim(token) == action) {
             shouldReview = true;
             break;
         }
@@ -552,25 +527,21 @@ void AIReviewer::ReviewPullRequest(const Json::Value& payload)
     std::string title = pr.get("title", "").asString();
     std::string body = pr.get("body", "").asString();
     std::string fullName = repo.get("full_name", "").asString();
-    auto slashPos = fullName.find('/');
     std::string owner, repoName;
-    if (slashPos != std::string::npos) {
-        owner = fullName.substr(0, slashPos);
-        repoName = fullName.substr(slashPos + 1);
-    } else {
+    if (!ParseRepoFullName(fullName, owner, repoName)) {
         ERROR(logger) << "reviewPullRequest: invalid repository full_name: " << fullName;
         return;
     }
 
     // 审查流程耗时较长（AI 请求最长 120s），调度到 IO 线程池执行，避免阻塞 webhook 响应；
     // 内部 HTTP 请求全部走 HttpClient，在 fiber 中只挂起当前协程。
-    chen::Scheduler* scheduler = chen::Scheduler::GetThis();
-    if (!scheduler) {
-        ERROR(logger) << "reviewPullRequest: no scheduler in current thread";
+    auto ioManager = chen::IOManager::GetThis();
+    if (!ioManager) {
+        ERROR(logger) << "reviewPullRequest: no IOManager in current thread";
         return;
     }
 
-    scheduler->schedule([owner, repoName, number, title, body, installationId]() {
+    ioManager->schedule([owner, repoName, number, title, body, installationId]() {
         INFO(logger) << "AI review started for " << owner << "/" << repoName << " PR #" << number;
 
         // 1. 生成 JWT
