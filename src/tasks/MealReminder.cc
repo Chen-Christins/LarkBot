@@ -193,7 +193,7 @@ void MealReminder::scheduleNext()
 
     timer_ = ioManager->addTimer(
         delay_ms,
-        [this]() {
+        [this]() -> void {
             if (!running_) {
                 return;
             }

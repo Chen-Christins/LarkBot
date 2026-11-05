@@ -8,7 +8,7 @@
 #include <sstream>
 
 #include "../Struct.hpp"
-#include "../ai_review/AiReviewer.hpp"
+#include "../ai_review/AIReviewer.hpp"
 #include "../feishu/FeishuBotManager.hpp"
 #include "../protocol/LarkCardProtocol.hpp"
 #include "protocol_ss_github.h"
@@ -469,8 +469,8 @@ bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::p
     INFO(logger) << "pull_request event: " << repoName << " #" << number << " action=" << action << " " << headRef << "->" << baseRef;
 
     // 如果开启了，则异步触发 AI 代码审查
-    if (AiReviewer::config().enabled) {
-        AiReviewer::reviewPullRequest(payload);
+    if (AIReviewer::Config().enabled) {
+        AIReviewer::ReviewPullRequest(payload);
     }
 
     // 转发到 blog 后端
