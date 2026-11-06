@@ -15,10 +15,6 @@ class TextProtocol : public Protocol {
 public:
     virtual void build() override;
 
-    virtual std::string toString() const override;
-
-    virtual void getData(Json::Value& value) const override;
-
     void setText(const std::string& text);
 
 private:

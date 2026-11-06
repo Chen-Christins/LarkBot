@@ -15,19 +15,6 @@ void RichTextProtocol::build()
     data_["content"]["post"]["zh_cn"]["content"] = paragraphs_;
 }
 
-std::string RichTextProtocol::toString() const
-{
-    return chen::JsonUtil::ToString(data_);
-}
-
-void RichTextProtocol::getData(Json::Value& value) const
-{
-    if (data_.empty()) {
-        const_cast<RichTextProtocol*>(this)->build();
-    }
-    value = data_;
-}
-
 void RichTextProtocol::setTitle(const std::string& title)
 {
     title_ = title;

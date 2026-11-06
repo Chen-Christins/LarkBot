@@ -15,10 +15,6 @@ class RichTextProtocol : public Protocol {
 public:
     virtual void build() override;
 
-    virtual std::string toString() const override;
-
-    virtual void getData(Json::Value& value) const override;
-
     void setTitle(const std::string& title);
 
     void addParagraph(const Json::Value& paragraph);

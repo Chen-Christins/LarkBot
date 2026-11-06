@@ -35,19 +35,6 @@ void LarkCardProtocol::build()
     data_["card"]["body"]["elements"] = body_elements_;
 }
 
-std::string LarkCardProtocol::toString() const
-{
-    return chen::JsonUtil::ToString(data_);
-}
-
-void LarkCardProtocol::getData(Json::Value& value) const
-{
-    if (data_.empty()) {
-        const_cast<LarkCardProtocol*>(this)->build();
-    }
-    value = data_;
-}
-
 void LarkCardProtocol::setHeader(const std::string& title, const std::string& subtitle, const std::string& templateColor, const std::string& padding)
 {
     header_title_ = title;

@@ -29,7 +29,7 @@ struct GithubAppConf {
 /**
  * @brief AI Review 配置，对应 ai_review.*
  */
-struct AiReviewConf {
+struct AIReviewConf {
     bool enabled = false;
     std::string provider = "openai";
     std::string api_key;
@@ -39,7 +39,7 @@ struct AiReviewConf {
     std::string review_trigger = "opened,synchronize";
     std::string review_comment_mode = "update";
 
-    bool operator==(const AiReviewConf& other) const
+    bool operator==(const AIReviewConf& other) const
     {
         return enabled == other.enabled && provider == other.provider && api_key == other.api_key && api_url == other.api_url && model == other.model
             && max_tokens == other.max_tokens && review_trigger == other.review_trigger && review_comment_mode == other.review_comment_mode;
@@ -78,12 +78,12 @@ public:
 };
 
 template <>
-class LexicalCast<std::string, bot::AiReviewConf> {
+class LexicalCast<std::string, bot::AIReviewConf> {
 public:
-    bot::AiReviewConf operator()(const std::string& v)
+    bot::AIReviewConf operator()(const std::string& v)
     {
         YAML::Node node = YAML::Load(v);
-        bot::AiReviewConf conf;
+        bot::AIReviewConf conf;
         conf.enabled = chen::LexicalCast<std::string, bool>()(node["enabled"].Scalar());
         conf.provider = node["provider"].as<std::string>(conf.provider);
         conf.api_key = node["api_key"].as<std::string>(conf.api_key);
@@ -97,9 +97,9 @@ public:
 };
 
 template <>
-class LexicalCast<bot::AiReviewConf, std::string> {
+class LexicalCast<bot::AIReviewConf, std::string> {
 public:
-    std::string operator()(const bot::AiReviewConf& conf)
+    std::string operator()(const bot::AIReviewConf& conf)
     {
         YAML::Node node;
         node["enabled"] = conf.enabled;
@@ -120,33 +120,33 @@ public:
 
 namespace bot {
 
-class AiReviewer {
+class AIReviewer {
 public:
-    typedef std::shared_ptr<AiReviewer> ptr;
+    typedef std::shared_ptr<AIReviewer> ptr;
 
     /**
      * @brief 获取当前 AI Review 配置（每次从 ConfigVar 读取，支持热更新）
      */
-    static AiReviewConf config();
+    static AIReviewConf Config();
 
     /**
      * @brief 对 PR 执行 AI 审查（异步，调度到 IOManager）
      * @param payload PR webhook 的完整 JSON payload
      */
-    static void reviewPullRequest(const Json::Value& payload);
+    static void ReviewPullRequest(const Json::Value& payload);
 
 private:
     /// 生成 GitHub App JWT（有效期 10 分钟）
-    static std::string generateJWT(const std::string& appId, const std::string& privateKeyPath);
+    static std::string GenerateJWT(const std::string& appId, const std::string& privateKeyPath);
 
     /// 用 JWT 换取安装访问令牌
-    static std::string getInstallationToken(const std::string& jwt, int64_t installationId);
+    static std::string GetInstallationToken(const std::string& jwt, int64_t installationId);
 
     /// 获取 PR 的代码变更（所有文件的 patch）
-    static std::string getPRDiff(const std::string& token, const std::string& owner, const std::string& repo, int prNumber);
+    static std::string GetPRDiff(const std::string& token, const std::string& owner, const std::string& repo, int prNumber);
 
     /// 调用 AI 进行代码审查
-    static std::string callAIReview(
+    static std::string CallAIReview(
         const std::string& diff,
         const std::string& title,
         const std::string& body,
@@ -154,7 +154,7 @@ private:
         int prNumber);
 
     /// 向 PR 发表审查评论
-    static void postReviewComment(
+    static void PostReviewComment(
         const std::string& token,
         const std::string& owner,
         const std::string& repo,
@@ -162,7 +162,7 @@ private:
         const std::string& review);
 
     /// 构建 AI 审查的 prompt
-    static std::string buildReviewPrompt(
+    static std::string BuildReviewPrompt(
         const std::string& diff,
         const std::string& title,
         const std::string& body,

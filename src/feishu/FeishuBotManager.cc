@@ -1,8 +1,7 @@
 #include "FeishuBotManager.hpp"
 
 #include <chen/config/config.h>
-#include <chen/http/http_connection.h>
-#include <chen/iomanager/iomanager.h>
+#include <chen/http/http_client.h>
 #include <chen/log/log.h>
 #include <chen/util/string_util.h>
 #include <chen/util/time_util.h>
@@ -21,7 +20,60 @@ static chen::ConfigVar<std::vector<FeishuBotConf>>::ptr g_feishu_bots =
 
 namespace {
 
-void SendHttp(const FeishuBot::ptr& bot, const Json::Value& payload)
+constexpr int kMaxRetries = 5;
+
+/**
+ * @brief 处理一次发送结果并打印日志
+ * @return true 表示失败且可重试
+ */
+bool ShouldRetry(const FeishuBot::ptr& bot, int attempt, const chen::http::HttpResult::ptr& ret)
+{
+    if (!ret) {
+        WARN(logger) << "send feishu message failed, bot=" << bot->name << " null result (attempt " << attempt << "/" << kMaxRetries << ")";
+        return true;
+    }
+
+    if (ret->result != static_cast<int>(chen::http::HttpResult::Error::OK)) {
+        // 只对临时性错误重试
+        if (!IsRetryableHttpError(ret->result)) {
+            ERROR(logger) << "send feishu message failed, bot=" << bot->name << " non-retryable error, data=" << ret->toString();
+            return false;
+        }
+        WARN(logger) << "send feishu message failed, bot=" << bot->name << " (attempt " << attempt << "/" << kMaxRetries
+                     << "), data=" << ret->toString();
+        return true;
+    }
+
+    // HTTP 200 不代表飞书业务成功，继续检查响应码
+    int32_t code = 0;
+    std::string message;
+    if (ret->response) {
+        const std::string& responseBody = ret->response->getBody();
+        Json::Value response;
+        if (chen::JsonUtil::FromString(response, responseBody)) {
+            if (response.isMember("code")) {
+                code = response["code"].asInt();
+                message = response.get("msg", "").asString();
+            }
+        } else if (!responseBody.empty()) {
+            WARN(logger) << "send feishu message response is not json, bot=" << bot->name << " body=" << responseBody;
+        }
+    }
+
+    if (code != 0) {
+        ERROR(logger) << "send feishu message failed, bot=" << bot->name << " code=" << code << " message=" << message;
+        return true;
+    }
+
+    INFO(logger) << "send feishu message success, bot=" << bot->name;
+    return false;
+}
+
+/**
+ * @brief 提交一次飞书消息发送，可重试失败时重新提交（每次重新签名）
+ * @return false 表示当前线程没有可用调度器，请求未提交
+ */
+bool SendHttp(const FeishuBot::ptr& bot, const Json::Value& payload, int attempt)
 {
     Json::Value body = payload;
     if (bot->enable_signature) {
@@ -33,55 +85,21 @@ void SendHttp(const FeishuBot::ptr& bot, const Json::Value& payload)
     std::string content = chen::JsonUtil::ToString(body);
     auto headers = std::map<std::string, std::string>{{"Content-Type", "application/json"}};
 
-    constexpr int kMaxRetries = 5;
-    for (int attempt = 1; attempt <= kMaxRetries; ++attempt) {
-        auto ret = chen::http::HttpConnection::DoRequest(chen::http::HttpMethod::POST, bot->webhook_url, 5000, headers, content);
-        if (!ret) {
-            WARN(logger) << "send feishu message failed, bot=" << bot->name << " null result (attempt " << attempt << "/" << kMaxRetries << ")";
-            continue;
-        }
-
-        if (ret->result != static_cast<int>(chen::http::HttpResult::Error::OK)) {
-            // 只对临时性错误重试
-            bool retryable = ret->result == static_cast<int>(chen::http::HttpResult::Error::TIMEOUT)
-                || ret->result == static_cast<int>(chen::http::HttpResult::Error::CONNECT_FAIL)
-                || ret->result == static_cast<int>(chen::http::HttpResult::Error::SEND_CLOSE_BY_PEER)
-                || ret->result == static_cast<int>(chen::http::HttpResult::Error::SEND_SOCKET_ERROR);
-            if (!retryable) {
-                ERROR(logger) << "send feishu message failed, bot=" << bot->name << " non-retryable error, data=" << ret->toString();
+    return chen::http::HttpClient::submit(
+        chen::http::HttpMethod::POST, bot->webhook_url, 5000,
+        [bot, payload, attempt](chen::http::HttpResult::ptr ret) {
+            if (!ShouldRetry(bot, attempt, ret)) {
                 return;
             }
-            WARN(logger) << "send feishu message failed, bot=" << bot->name << " (attempt " << attempt << "/" << kMaxRetries
-                         << "), data=" << ret->toString();
-            continue;
-        }
-
-        // HTTP 200 不代表飞书业务成功，继续检查响应码
-        int32_t code = 0;
-        std::string message;
-        if (ret->response) {
-            const std::string& responseBody = ret->response->getBody();
-            Json::Value response;
-            if (chen::JsonUtil::FromString(response, responseBody)) {
-                if (response.isMember("code")) {
-                    code = response["code"].asInt();
-                    message = response.get("msg", "").asString();
-                }
-            } else if (!responseBody.empty()) {
-                WARN(logger) << "send feishu message response is not json, bot=" << bot->name << " body=" << responseBody;
+            if (attempt >= kMaxRetries) {
+                ERROR(logger) << "send feishu message exhausted all retries, bot=" << bot->name;
+                return;
             }
-        }
-
-        if (code != 0) {
-            ERROR(logger) << "send feishu message failed, bot=" << bot->name << " code=" << code << " message=" << message;
-            continue;
-        }
-
-        INFO(logger) << "send feishu message success, bot=" << bot->name;
-        return;
-    }
-
-    ERROR(logger) << "send feishu message exhausted all retries, bot=" << bot->name;
+            if (!SendHttp(bot, payload, attempt + 1)) {
+                ERROR(logger) << "send feishu message resubmit failed, bot=" << bot->name << " (attempt " << attempt + 1 << "/" << kMaxRetries << ")";
+            }
+        },
+        headers, content);
 }
 
 } // namespace
@@ -153,19 +171,7 @@ bool FeishuBotManager::send(const FeishuBot::ptr& bot, const Json::Value& payloa
         return false;
     }
 
-    chen::Scheduler* scheduler = chen::IOManager::GetThis();
-    if (!scheduler) {
-        scheduler = chen::Scheduler::GetThis();
-    }
-    if (!scheduler) {
-        ERROR(logger) << "send feishu message failed, bot=" << bot->name << " no scheduler in current thread";
-        return false;
-    }
-
-    scheduler->schedule([bot, payload]() {
-        SendHttp(bot, payload);
-    });
-    return true;
+    return SendHttp(bot, payload, 1);
 }
 
 bool FeishuBotManager::sendJson(const std::string& name, const std::string& json)

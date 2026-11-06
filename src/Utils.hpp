@@ -21,4 +21,19 @@ bool IsValidUrl(const std::string& url);
  */
 bool IsValidIdentifier(const std::string& value);
 
+/**
+ * @brief 判断 HTTP 错误是否属于临时性、可重试错误
+ * @param result chen::http::HttpResult::result
+ */
+bool IsRetryableHttpError(int result);
+
+/**
+ * @brief 解析 GitHub 仓库 full_name（owner/repo）
+ * @param fullName GitHub 返回的 full_name
+ * @param owner [out] 仓库所有者
+ * @param repo [out] 仓库名
+ * @return true 解析成功
+ */
+bool ParseRepoFullName(const std::string& fullName, std::string& owner, std::string& repo);
+
 } // namespace bot

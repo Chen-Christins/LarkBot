@@ -8,7 +8,8 @@
 #include <sstream>
 
 #include "../Struct.hpp"
-#include "../ai_review/AiReviewer.hpp"
+#include "../Utils.hpp"
+#include "../ai_review/AIReviewer.hpp"
 #include "../feishu/FeishuBotManager.hpp"
 #include "../protocol/LarkCardProtocol.hpp"
 #include "protocol_ss_github.h"
@@ -29,6 +30,16 @@ static void sendMessage(const Json::Value& cardJson)
         return;
     }
     FeishuBotMgr::GetInstance()->send(bot_name, cardJson);
+}
+
+static void SendCard(LarkCardProtocol& card)
+{
+    card.build();
+
+    Json::Value cardJson;
+    card.getData(cardJson);
+
+    sendMessage(cardJson);
 }
 
 /// tagGithubPRInfo 转字符串（用于日志打印）
@@ -379,12 +390,7 @@ bool GithubWebHook::handlePushEvent(const Json::Value& payload, Result::ptr resu
     // 查看对比按钮
     card.addElement(LarkCardProtocol::buttonElement("View Compare", compare));
 
-    card.build();
-
-    Json::Value cardJson;
-    card.getData(cardJson);
-
-    sendMessage(cardJson);
+    SendCard(card);
 
     INFO(logger) << "push event: " << repoName << " " << refName << " " << before.substr(0, 7) << "->" << after.substr(0, 7)
                  << " commits:" << commits.size();
@@ -459,18 +465,13 @@ bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::p
     // 查看 PR 按钮
     card.addElement(LarkCardProtocol::buttonElement("View Pull Request", htmlUrl));
 
-    card.build();
-
-    Json::Value cardJson;
-    card.getData(cardJson);
-
-    sendMessage(cardJson);
+    SendCard(card);
 
     INFO(logger) << "pull_request event: " << repoName << " #" << number << " action=" << action << " " << headRef << "->" << baseRef;
 
     // 如果开启了，则异步触发 AI 代码审查
-    if (AiReviewer::config().enabled) {
-        AiReviewer::reviewPullRequest(payload);
+    if (AIReviewer::Config().enabled) {
+        AIReviewer::ReviewPullRequest(payload);
     }
 
     // 转发到 blog 后端
@@ -495,10 +496,8 @@ bool GithubWebHook::handlePullRequestEvent(const Json::Value& payload, Result::p
         blog_info.MergedAt = pr.get("merged_at", "").asString();
         // full_name = "owner/repo"
         std::string fullName = repo.get("full_name", "").asString();
-        auto slash_pos = fullName.find('/');
-        if (slash_pos != std::string::npos) {
-            blog_info.RepoOwner = fullName.substr(0, slash_pos);
-            blog_info.RepoName = fullName.substr(slash_pos + 1);
+        if (!ParseRepoFullName(fullName, blog_info.RepoOwner, blog_info.RepoName)) {
+            WARN(logger) << "invalid repository full_name: " << fullName;
         }
         ForwardPRToBlog(blog_info);
     }
@@ -547,12 +546,7 @@ bool GithubWebHook::handleCreateEvent(const Json::Value& payload, Result::ptr re
         card.addElement(LarkCardProtocol::buttonElement("View Repository", repoUrl));
     }
 
-    card.build();
-
-    Json::Value cardJson;
-    card.getData(cardJson);
-
-    sendMessage(cardJson);
+    SendCard(card);
 
     INFO(logger) << "create event: " << repoName << " " << refType << " " << refName;
 
@@ -582,12 +576,7 @@ bool GithubWebHook::handleDeleteEvent(const Json::Value& payload, Result::ptr re
         card.addElement(LarkCardProtocol::buttonElement("View Repository", repoUrl));
     }
 
-    card.build();
-
-    Json::Value cardJson;
-    card.getData(cardJson);
-
-    sendMessage(cardJson);
+    SendCard(card);
 
     INFO(logger) << "delete event: " << repoName << " " << refType << " " << ref;
 
@@ -646,12 +635,7 @@ bool GithubWebHook::handleWorkflowRunEvent(const Json::Value& payload, Result::p
 
     card.addElement(LarkCardProtocol::buttonElement("View Workflow Run", htmlUrl));
 
-    card.build();
-
-    Json::Value cardJson;
-    card.getData(cardJson);
-
-    sendMessage(cardJson);
+    SendCard(card);
 
     INFO(logger) << "workflow_run event: " << repoName << " " << name << " conclusion=" << conclusion << " branch=" << branch;
 
@@ -719,12 +703,7 @@ bool GithubWebHook::handleReleaseEvent(const Json::Value& payload, Result::ptr r
 
     card.addElement(LarkCardProtocol::buttonElement("View Release", htmlUrl));
 
-    card.build();
-
-    Json::Value cardJson;
-    card.getData(cardJson);
-
-    sendMessage(cardJson);
+    SendCard(card);
 
     INFO(logger) << "release event: " << repoName << " tag=" << tagName << " action=" << action << " prerelease=" << prerelease;
 
@@ -759,12 +738,7 @@ bool GithubWebHook::handleWatchEvent(const Json::Value& payload, Result::ptr res
         card.addElement(LarkCardProtocol::buttonElement("View Repository", repoUrl));
     }
 
-    card.build();
-
-    Json::Value cardJson;
-    card.getData(cardJson);
-
-    sendMessage(cardJson);
+    SendCard(card);
 
     INFO(logger) << "watch event: " << senderName << " starred " << repoName << " (total: " << stargazersCount << ")";
 
@@ -839,12 +813,7 @@ bool GithubWebHook::handlePullRequestReviewEvent(const Json::Value& payload, Res
     }
     card.addElement(LarkCardProtocol::buttonElement("View Pull Request", prUrl));
 
-    card.build();
-
-    Json::Value cardJson;
-    card.getData(cardJson);
-
-    sendMessage(cardJson);
+    SendCard(card);
 
     INFO(logger) << "pull_request_review event: " << repoName << " PR #" << prNumber << " state=" << reviewState << " by " << senderName;
 
@@ -858,10 +827,8 @@ bool GithubWebHook::handlePullRequestReviewEvent(const Json::Value& payload, Res
         blog_info.SubmittedAt = review.get("submitted_at", "").asString();
         // full_name = "owner/repo"
         std::string fullName = repo.get("full_name", "").asString();
-        auto slash_pos = fullName.find('/');
-        if (slash_pos != std::string::npos) {
-            blog_info.RepoOwner = fullName.substr(0, slash_pos);
-            blog_info.RepoName = fullName.substr(slash_pos + 1);
+        if (!ParseRepoFullName(fullName, blog_info.RepoOwner, blog_info.RepoName)) {
+            WARN(logger) << "invalid repository full_name: " << fullName;
         }
         ForwardPRReviewToBlog(blog_info);
     }
@@ -918,12 +885,7 @@ bool GithubWebHook::handlePullRequestReviewCommentEvent(const Json::Value& paylo
     }
     card.addElement(LarkCardProtocol::buttonElement("View Pull Request", prUrl));
 
-    card.build();
-
-    Json::Value cardJson;
-    card.getData(cardJson);
-
-    sendMessage(cardJson);
+    SendCard(card);
 
     INFO(logger) << "pull_request_review_comment event: " << repoName << " PR #" << prNumber << " file=" << filePath << " by " << senderName;
 
@@ -965,12 +927,7 @@ bool GithubWebHook::handleForkEvent(const Json::Value& payload, Result::ptr resu
         card.addElement(LarkCardProtocol::buttonElement("View Original Repository", repoUrl));
     }
 
-    card.build();
-
-    Json::Value cardJson;
-    card.getData(cardJson);
-
-    sendMessage(cardJson);
+    SendCard(card);
 
     INFO(logger) << "fork event: " << senderName << " forked " << repoName << " -> " << forkeeName << " (total forks: " << forksCount << ")";
 
@@ -1048,12 +1005,7 @@ bool GithubWebHook::handleSecurityAdvisoryEvent(const Json::Value& payload, Resu
         card.addElement(LarkCardProtocol::buttonElement("View Advisory", htmlUrl));
     }
 
-    card.build();
-
-    Json::Value cardJson;
-    card.getData(cardJson);
-
-    sendMessage(cardJson);
+    SendCard(card);
 
     INFO(logger) << "security_advisory event: " << repoName << " ghsa=" << ghsaId << " severity=" << severity << " action=" << action;
 

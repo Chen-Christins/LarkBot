@@ -6,9 +6,6 @@
 #include <chen/log/log.h>
 #include <chen/util/string_util.h>
 #include <chen/util/time_util.h>
-#include <chen/util/type_util.h>
-
-#include <algorithm>
 
 #include "../feishu/FeishuBotManager.hpp"
 #include "../protocol/LarkCardProtocol.hpp"
@@ -36,28 +33,22 @@ static constexpr uint64_t kDayMs = 24 * 3600 * 1000;
  */
 static bool ParseTimer(const std::string& value, int32_t& secondsOfDay)
 {
-    auto parts = chen::StringUtil::Split(value, ':');
-    if (parts.size() != 2 && parts.size() != 3) {
-        return false;
+    std::string timer = chen::StringUtil::Trim(value);
+    if (chen::StringUtil::Split(timer, ':').size() == 2) {
+        timer += ":00";
     }
 
-    int32_t nums[3] = {0, 0, 0};
-    for (size_t i = 0; i < parts.size(); ++i) {
-        std::string part = chen::StringUtil::Trim(parts[i]);
-        bool digits = !part.empty() && std::all_of(part.begin(), part.end(), [](char c) {
-            return c >= '0' && c <= '9';
-        });
-        if (!digits) {
+    time_t ts = chen::TimeUtil::Str2Time(timer);
+    // Str2Time 解析失败返回 0，但 00:00:00 本身也是合法值
+    if (ts == 0) {
+        if (timer != "00:00:00") {
             return false;
         }
-        nums[i] = chen::TypeUtil::Atoi(part);
+        secondsOfDay = 0;
+        return true;
     }
 
-    if (nums[0] > 23 || nums[1] > 59 || nums[2] > 59) {
-        return false;
-    }
-
-    secondsOfDay = nums[0] * 3600 + nums[1] * 60 + nums[2];
+    secondsOfDay = chen::TimeUtil::GetSecondsSinceMidnight(ts);
     return true;
 }
 
@@ -75,13 +66,9 @@ static void LoadTimers(std::set<int32_t>& timers)
 
 static bool IsWorkingDay(uint64_t time_ms)
 {
-    std::string url = "https://route.showapi.com/894-6";
-
-    std::string key = g_app_key->getValue();
-    url = url + "?appKey=" + key;
-
-    std::string day = chen::TimeUtil::Time2StrMs(time_ms, "%Y-%m-%d");
-    url = url + "&day=" + day;
+    std::string key = chen::StringUtil::URLEncode(g_app_key->getValue());
+    std::string day = chen::StringUtil::URLEncode(chen::TimeUtil::Time2StrMs(time_ms, "%Y-%m-%d"));
+    std::string url = chen::StringUtil::Format("https://route.showapi.com/894-6?appKey=%s&day=%s", key.c_str(), day.c_str());
 
     std::map<std::string, std::string> headers = {
         {"content-type", "application/x-www-form-urlencoded"},
@@ -193,7 +180,7 @@ void MealReminder::scheduleNext()
 
     timer_ = ioManager->addTimer(
         delay_ms,
-        [this]() {
+        [this]() -> void {
             if (!running_) {
                 return;
             }

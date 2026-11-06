@@ -16,12 +16,6 @@ namespace bot {
 
 /**
  * @brief 每日点餐提醒
- * @details 配置项：
- *   meal_reminder.enabled          是否启用
- *   meal_reminder.timers           每天发送的时间点列表，格式 "HH:MM"（如 ["11:30", "18:00"]）
- *   meal_reminder.skip_weekdays    不发送的星期，1=周一 ... 7=周日
- *   meal_reminder.test_on_startup  启动后是否立即发送一次，便于测试
- *   meal_reminder.bot              发送目标机器人名称，不能为空
  */
 class MealReminder {
 public:
